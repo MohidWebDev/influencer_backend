@@ -155,3 +155,14 @@ export async function updatePerson(req: Request, res: Response) {
   await person.populate(TAXONOMY_POPULATE)
   sendSuccess(res, { person })
 }
+
+// DELETE /api/people/:id -> sirf admin, hamesha ke liye mita deta hai
+export async function deletePerson(req: Request, res: Response) {
+  const id = String(req.params.id)
+  if (!isValidObjectId(id)) throw new AppError(404, 'NOT_FOUND', 'Profile not found')
+
+  const person = await Person.findByIdAndDelete(id)
+  if (!person) throw new AppError(404, 'NOT_FOUND', 'Profile not found')
+
+  sendSuccess(res, { deleted: true, id, slug: person.slug })
+}

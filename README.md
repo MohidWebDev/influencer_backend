@@ -81,6 +81,7 @@ router.post('/inquiries', requireAuth, requireRole('business', 'agency'), create
 | GET | `/api/people/:slug` | anyone | public profile |
 | POST | `/api/people` | admin | create a profile (taxonomy as slugs) |
 | PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, verified, visibility` |
+| DELETE | `/api/people/:id` | admin | delete a profile permanently (prefer `visibility: hidden` for takedowns) |
 | GET | `/api/taxonomy/professions` (`industries`, `topics`) | anyone | dropdown lists |
 
 ## Admin endpoints (admin only)

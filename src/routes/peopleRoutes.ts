@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import {
   createPerson,
+  deletePerson,
   getPersonBySlug,
   listPeople,
   updatePerson,
@@ -17,5 +18,6 @@ router.get('/', cachePublic(60), listPeople)
 router.get('/:slug', cachePublic(60), getPersonBySlug)
 router.post('/', requireAuth, requireRole('admin'), validate(createPersonSchema), createPerson)
 router.patch('/:id', requireAuth, updatePerson)
+router.delete('/:id', requireAuth, requireRole('admin'), deletePerson)
 
 export default router
