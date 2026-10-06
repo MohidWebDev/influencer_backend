@@ -22,11 +22,24 @@ src/
 ├─ controllers/      request logic (C)
 ├─ routes/           URL -> controller mapping
 ├─ middlewares/      runs before controllers (db, auth, errors)
+├─ services/         shared logic used by controllers and scripts (slugs, taxonomy lookups)
+├─ seed/             seed data and scripts (taxonomy, demo people, make-admin)
 ├─ validators/       Zod schemas for request input
 ├─ types/            TypeScript types (req.user)
 ├─ utils/            helpers (response format, AppError, JWT, cookies)
 ├─ app.ts            Express app setup (Vercel uses this default export)
 └─ server.ts         starts the server locally
+```
+
+## Seed data
+
+Run these locally with `MONGO_URI` in `.env` pointing at the database you want to fill:
+
+```bash
+npm run seed              # professions, industries, topics (safe to run again)
+npm run seed:demo         # taxonomy + 12 fictional sample people (isDemo: true)
+npm run seed:clear-demo   # remove the sample people
+npm run make-admin -- you@example.com   # make a registered user an admin
 ```
 
 ## Request flow
@@ -59,6 +72,16 @@ Protect a route:
 ```ts
 router.post('/inquiries', requireAuth, requireRole('business', 'agency'), createInquiry)
 ```
+
+## People endpoints
+
+| Method | URL | Who | What |
+|---|---|---|---|
+| GET | `/api/people` | anyone | search: `q, profession, industry, topic, country, city, language, minFollowers, status, page, limit, sort (followers / newest / name)`. `profession/industry/topic` take slugs, comma separated |
+| GET | `/api/people/:slug` | anyone | public profile |
+| POST | `/api/people` | admin | create a profile (taxonomy as slugs) |
+| PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, verified, visibility` |
+| GET | `/api/taxonomy/professions` (`industries`, `topics`) | anyone | dropdown lists |
 
 ## Environment variables on Vercel
 
