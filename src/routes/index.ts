@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import adminRoutes from './adminRoutes'
 import authRoutes from './authRoutes'
 import peopleRoutes from './peopleRoutes'
 import taxonomyRoutes from './taxonomyRoutes'
@@ -9,5 +10,6 @@ const router = Router()
 router.use('/auth', authRoutes)
 router.use('/people', peopleRoutes)
 router.use('/taxonomy', taxonomyRoutes)
+router.use('/admin', adminRoutes)
 
 export default router

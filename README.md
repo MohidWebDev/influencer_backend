@@ -83,6 +83,19 @@ router.post('/inquiries', requireAuth, requireRole('business', 'agency'), create
 | PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, verified, visibility` |
 | GET | `/api/taxonomy/professions` (`industries`, `topics`) | anyone | dropdown lists |
 
+## Admin endpoints (admin only)
+
+| Method | URL | What |
+|---|---|---|
+| GET | `/api/admin/people?q=&visibility=&page=&limit=` | all profiles, including hidden |
+| GET | `/api/admin/people/:id` | one profile by id (for the edit form) |
+
+Create and edit use `POST /api/people` and `PATCH /api/people/:id`.
+
+## Caching
+
+Public GETs send `Cache-Control: public, max-age=0, must-revalidate` (the browser always checks) and `CDN-Cache-Control` so Vercel's CDN can answer for 60s (people) or 1h (taxonomy). Errors are `no-store`.
+
 ## Environment variables on Vercel
 
 `NODE_ENV`, `CLIENT_URL`, `MONGO_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (see `.env.example`).

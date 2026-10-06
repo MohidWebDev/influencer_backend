@@ -12,6 +12,7 @@ export function errorHandler(
 ) {
   // Error wala jawab kabhi cache na ho
   res.set('Cache-Control', 'no-store')
+  res.removeHeader('CDN-Cache-Control')
 
   if (err instanceof AppError) {
     return sendError(res, err.statusCode, err.code, err.message, err.fields)
