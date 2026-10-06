@@ -24,7 +24,7 @@ export async function adminListPeople(req: Request, res: Response) {
   const skip = (query.page - 1) * query.limit
   const [people, total] = await Promise.all([
     Person.find(filter)
-      .select('name slug headline status verified visibility isDemo claimedBy totalFollowers updatedAt')
+      .select('name slug headline photoUrl status verified visibility isDemo claimedBy totalFollowers updatedAt')
       .sort({ updatedAt: -1, _id: 1 })
       .skip(skip)
       .limit(query.limit),
