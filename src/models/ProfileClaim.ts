@@ -1,9 +1,30 @@
 import { Schema, model, type Types } from 'mongoose'
 
-export const CLAIM_STATUSES = ['pending', 'approved', 'rejected'] as const
+// pending       -> talent ne claim bheja, admin ko code bhejna hai
+// code_sent     -> admin ne talent ke official account pe code DM kiya
+// code_verified -> talent ne sahi code website pe daala, admin final approve karega
+// approved / rejected
+export const CLAIM_STATUSES = ['pending', 'code_sent', 'code_verified', 'approved', 'rejected'] as const
 export type ClaimStatus = (typeof CLAIM_STATUSES)[number]
 
-// Talent kehta hai "ye profile meri hai". Admin saboot dekh kar approve/reject karta hai
+// Jab tak claim in mein se kisi halat mein hai, woh "khula" hai
+export const OPEN_CLAIM_STATUSES: ClaimStatus[] = ['pending', 'code_sent', 'code_verified']
+
+export const CODE_TTL_MS = 48 * 60 * 60 * 1000 // 48 ghante
+export const MAX_CODE_ATTEMPTS = 5
+
+export interface IClaimVerification {
+  // Kis link (Instagram waghera) pe code bheja gaya
+  channelUrl?: string
+  // Code kabhi seedha save nahi hota, sirf hash
+  codeHash?: string
+  codeSentAt?: Date
+  expiresAt?: Date
+  attempts: number
+  verifiedAt?: Date
+}
+
+// Talent kehta hai "ye profile meri hai". Admin code bhej kar tasdeeq karta hai
 export interface IProfileClaim {
   person: Types.ObjectId
   user: Types.ObjectId
@@ -11,8 +32,9 @@ export interface IProfileClaim {
   evidence: {
     contactEmail?: string
     links: string[]
-    note: string
+    note?: string
   }
+  verification: IClaimVerification
   reviewedBy?: Types.ObjectId
   reviewedAt?: Date
   rejectionReason?: string
@@ -28,7 +50,15 @@ const profileClaimSchema = new Schema<IProfileClaim>(
     evidence: {
       contactEmail: { type: String, trim: true, lowercase: true },
       links: [{ type: String, trim: true }],
-      note: { type: String, required: true, trim: true, maxlength: 1000 },
+      note: { type: String, trim: true, maxlength: 1000 },
+    },
+    verification: {
+      channelUrl: { type: String, trim: true },
+      codeHash: { type: String, select: false },
+      codeSentAt: { type: Date },
+      expiresAt: { type: Date },
+      attempts: { type: Number, default: 0 },
+      verifiedAt: { type: Date },
     },
     reviewedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     reviewedAt: { type: Date },
@@ -39,6 +69,8 @@ const profileClaimSchema = new Schema<IProfileClaim>(
     toJSON: {
       transform: (_doc, ret: Record<string, unknown>) => {
         delete ret.__v
+        const verification = ret.verification as Record<string, unknown> | undefined
+        if (verification) delete verification.codeHash
         return ret
       },
     },

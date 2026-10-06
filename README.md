@@ -86,17 +86,27 @@ router.post('/inquiries', requireAuth, requireRole('business', 'agency'), create
 
 ## Claim endpoints
 
-A talent says "this profile is me"; an admin checks the evidence and approves or rejects.
+A talent says "this profile is me". We verify it with a one-time code sent to one of their official accounts:
+
+```
+pending        talent sent a claim with official account links
+code_sent      admin generated a 6-digit code and sent it by DM to one of those links
+code_verified  talent entered the correct code on the website
+approved       admin gave final approval (person.claimedBy is set)
+rejected       admin rejected, or another claim for the same profile was approved
+```
 
 | Method | URL | Who | What |
 |---|---|---|---|
-| POST | `/api/claims` | talent | body: `personId, note, contactEmail?, links?[]`. One pending claim per user, one owned profile per user |
+| POST | `/api/claims` | talent | body: `personId, links[] (min 1), contactEmail?, note?`. One open claim per user, one owned profile per user |
 | GET | `/api/claims/mine` | logged in | my claims, newest first |
 | GET | `/api/claims/my-profile` | logged in | the Person I own, or `null` |
-| GET | `/api/admin/claims?status=pending` | admin | claims to review (`pending`, `approved`, `rejected`) |
-| PATCH | `/api/admin/claims/:id` | admin | body: `action: approve / reject, reason?` |
+| POST | `/api/claims/:id/verify` | claim owner | body: `code`. 5 attempts, code expires after 48h |
+| GET | `/api/admin/claims?status=open` | admin | `open`, `needs_action`, or one status |
+| POST | `/api/admin/claims/:id/code` | admin | body: `channelUrl` (one of the claim links). Returns the code once |
+| PATCH | `/api/admin/claims/:id` | admin | body: `action: approve / reject, reason?`. Approve only after `code_verified` |
 
-Approving sets `person.claimedBy` through `setPersonOwner()` in `services/personService.ts`, moves a `public` profile to `contactable`, and auto-rejects other pending claims for the same profile.
+Codes are stored as SHA-256 hashes (salted with the claim id) and compared in constant time. Generating a new code invalidates the old one and resets attempts. Approving sets `person.claimedBy` through `setPersonOwner()`, moves a `public` profile to `contactable`, and auto-rejects other open claims for the same profile.
 
 ## Admin endpoints (admin only)
 
