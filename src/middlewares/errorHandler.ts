@@ -10,6 +10,9 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ) {
+  // Error wala jawab kabhi cache na ho
+  res.set('Cache-Control', 'no-store')
+
   if (err instanceof AppError) {
     return sendError(res, err.statusCode, err.code, err.message, err.fields)
   }
