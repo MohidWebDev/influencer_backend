@@ -15,7 +15,6 @@ Check it works: open http://localhost:5000/api/health. You should see `{"success
 ## Folder structure
 
 ```
-api/index.ts         Vercel entry point (exports the Express app)
 src/
 ├─ config/           env variables + MongoDB connection
 ├─ models/           Mongoose schemas (M)
@@ -24,7 +23,7 @@ src/
 ├─ middlewares/      runs before controllers (db, auth, errors)
 ├─ validators/       Zod schemas for request input
 ├─ utils/            helpers (response format, AppError)
-├─ app.ts            Express app setup
+├─ app.ts            Express app setup (Vercel uses this default export)
 └─ server.ts         starts the server locally
 ```
 
