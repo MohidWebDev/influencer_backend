@@ -38,3 +38,23 @@ export async function resolveTaxonomySlugs(
 
   return items.map((item) => item._id)
 }
+
+// Claim approve hone pe Person ka maalik set karta hai.
+// Sirf tab jab profile pehle se kisi aur ki na ho (dono admin ek saath approve karein to bhi safe)
+export async function setPersonOwner(personId: Types.ObjectId | string, userId: Types.ObjectId | string) {
+  const person = await Person.findOneAndUpdate(
+    { _id: personId, claimedBy: null },
+    { $set: { claimedBy: userId } },
+    { returnDocument: 'after' },
+  )
+  if (!person) {
+    throw new AppError(409, 'ALREADY_CLAIMED', 'This profile has already been claimed')
+  }
+
+  // Document: claim hone ke baad profile "public" se "contactable" ho jati hai
+  if (person.status === 'public') {
+    person.status = 'contactable'
+    await person.save()
+  }
+  return person
+}

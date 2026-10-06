@@ -84,6 +84,20 @@ router.post('/inquiries', requireAuth, requireRole('business', 'agency'), create
 | DELETE | `/api/people/:id` | admin | delete a profile permanently (prefer `visibility: hidden` for takedowns) |
 | GET | `/api/taxonomy/professions` (`industries`, `topics`) | anyone | dropdown lists |
 
+## Claim endpoints
+
+A talent says "this profile is me"; an admin checks the evidence and approves or rejects.
+
+| Method | URL | Who | What |
+|---|---|---|---|
+| POST | `/api/claims` | talent | body: `personId, note, contactEmail?, links?[]`. One pending claim per user, one owned profile per user |
+| GET | `/api/claims/mine` | logged in | my claims, newest first |
+| GET | `/api/claims/my-profile` | logged in | the Person I own, or `null` |
+| GET | `/api/admin/claims?status=pending` | admin | claims to review (`pending`, `approved`, `rejected`) |
+| PATCH | `/api/admin/claims/:id` | admin | body: `action: approve / reject, reason?` |
+
+Approving sets `person.claimedBy` through `setPersonOwner()` in `services/personService.ts`, moves a `public` profile to `contactable`, and auto-rejects other pending claims for the same profile.
+
 ## Admin endpoints (admin only)
 
 | Method | URL | What |

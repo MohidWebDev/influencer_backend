@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import { isValidObjectId, type QueryFilter } from 'mongoose'
 import '../types/express'
 import { Person, type IPerson } from '../models/Person'
+import { ProfileClaim } from '../models/ProfileClaim'
 import { Industry, Profession, Topic } from '../models/taxonomy'
 import {
   generateUniquePersonSlug,
@@ -163,6 +164,8 @@ export async function deletePerson(req: Request, res: Response) {
 
   const person = await Person.findByIdAndDelete(id)
   if (!person) throw new AppError(404, 'NOT_FOUND', 'Profile not found')
+  // Is profile ke claims bhi saaf karo
+  await ProfileClaim.deleteMany({ person: person._id })
 
   sendSuccess(res, { deleted: true, id, slug: person.slug })
 }
