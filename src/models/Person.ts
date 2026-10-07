@@ -50,6 +50,8 @@ export interface IPerson {
   sourceRecords: ISourceRecord[]
   // Sample data jo baad mein ek command se hataya ja sake
   isDemo: boolean
+  // Talent ki khud bheji hui profile: claim approve hone tak chhupi (visibility hidden)
+  isDraft: boolean
   createdAt: Date
   updatedAt: Date
 }
@@ -98,6 +100,7 @@ const personSchema = new Schema<IPerson>(
     visibility: { type: String, enum: ['visible', 'hidden'], default: 'visible' },
     sourceRecords: { type: [sourceRecordSchema], default: [] },
     isDemo: { type: Boolean, default: false },
+    isDraft: { type: Boolean, default: false },
   },
   {
     timestamps: true,

@@ -11,7 +11,16 @@ export async function adminGetClaim(req: Request, res: Response) {
   if (!isValidObjectId(id)) throw new AppError(404, 'NOT_FOUND', 'Claim not found')
 
   const claim = await ProfileClaim.findById(id).populate([
-    { path: 'person', select: 'name slug headline photoUrl claimedBy status verified visibility' },
+    {
+      path: 'person',
+      select:
+        'name slug headline bio photoUrl websiteUrl country city languages socialAccounts claimedBy status verified visibility isDraft professions industries topics',
+      populate: [
+        { path: 'professions', select: 'name slug' },
+        { path: 'industries', select: 'name slug' },
+        { path: 'topics', select: 'name slug' },
+      ],
+    },
     { path: 'user', select: 'name email role status createdAt' },
     { path: 'reviewedBy', select: 'name email' },
     { path: 'verifiedBy', select: 'name email' },

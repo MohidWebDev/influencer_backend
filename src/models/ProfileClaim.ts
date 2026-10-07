@@ -56,6 +56,10 @@ export interface IProfileClaim {
     note?: string
   }
   verification: IClaimVerification
+  // true = talent ne apni nayi profile khud banayi (profile approve hone tak chhupi)
+  isNewProfile: boolean
+  // Nayi profile ka naam: reject pe draft delete ho jaye tab bhi talent ko naam dikhe
+  requestedName?: string
   // OTP ki ghalat koshishein (5 pe lock)
   otpAttempts: number
   otpLockedAt?: Date
@@ -91,6 +95,8 @@ const profileClaimSchema = new Schema<IProfileClaim>(
       codeSentAt: { type: Date },
       expiresAt: { type: Date },
     },
+    isNewProfile: { type: Boolean, default: false },
+    requestedName: { type: String, trim: true },
     otpAttempts: { type: Number, default: 0, min: 0 },
     otpLockedAt: { type: Date },
     lastOtpAttemptAt: { type: Date },

@@ -166,6 +166,15 @@ export async function updatePerson(req: Request, res: Response) {
     ? parseOrThrow(adminUpdatePersonSchema, body)
     : parseOrThrow(updatePersonSchema, body)
 
+  // Talent ki bheji hui profile sirf claim approve hone pe public hoti hai, haath se nahi
+  if (input.visibility === 'visible' && person.isDraft) {
+    throw new AppError(
+      409,
+      'PROFILE_PENDING_REVIEW',
+      'This profile is waiting for its claim to be approved',
+    )
+  }
+
   // Verify sirf tab jab koi talent profile claim kar chuka ho. Unverify hamesha ho sakta hai
   if (input.verified === true && !person.verified && !person.claimedBy) {
     throw notClaimedError()

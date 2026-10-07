@@ -11,13 +11,20 @@ import {
   type ClaimStatus,
 } from '../models/ProfileClaim'
 import { writeAuditLog } from '../services/auditService'
-import { setPersonOwner } from '../services/personService'
+import {
+  generateUniquePersonSlug,
+  resolveTaxonomySlugs,
+  setPersonOwner,
+} from '../services/personService'
+import { Industry, Profession, Topic } from '../models/taxonomy'
 import { AppError } from '../utils/AppError'
 import { sendSuccess } from '../utils/apiResponse'
 import { generateClaimCode, hashClaimCode, isClaimCodeValid } from '../utils/claimCode'
 import { parseOrThrow } from '../utils/validation'
+import { slugify } from '../utils/slugify'
 import {
   adminListClaimsQuerySchema,
+  newProfileClaimSchema,
   resetOtpSchema,
   reviewClaimSchema,
   sendCodeSchema,
@@ -73,6 +80,115 @@ export async function createClaim(req: Request, res: Response) {
 
   await claim.populate({ path: 'person', select: PERSON_FIELDS })
   sendSuccess(res, { claim }, 201)
+}
+
+// Link ko compare ke liye ek shakal mein: chhote huroof, bina https/www aur aakhri "/"
+function normalizeUrl(url: string) {
+  return url
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\/+$/, '')
+}
+
+// POST /api/claims/new-profile -> talent ko apni profile na mile to khud bheje.
+// Profile chhupi (draft) banti hai, saath claim; wahi OTP flow, approve pe public
+export async function createNewProfileClaim(req: Request, res: Response) {
+  const input = parseOrThrow(newProfileClaimSchema, req.body ?? {})
+  const userId = req.user!.id
+
+  if (await Person.exists({ claimedBy: userId })) {
+    throw new AppError(409, 'ALREADY_OWNS_PROFILE', 'You already own a profile')
+  }
+  if (await ProfileClaim.exists({ user: userId, status: { $in: OPEN_CLAIM_STATUSES } })) {
+    throw new AppError(409, 'CLAIM_PENDING', 'You already have a claim waiting for review')
+  }
+
+  // Pehle se milti julti public profile? (wahi naam ya wahi social link) Talent ko dikhao
+  if (!input.force) {
+    const base = slugify(input.name)
+    const linkPatterns = input.socialAccounts.map(
+      (a) => new RegExp(`^https?://(www\\.)?${escapeRegex(normalizeUrl(a.url))}/?$`, 'i'),
+    )
+    const candidates = await Person.find({
+      visibility: 'visible',
+      $or: [
+        { name: new RegExp(`^${escapeRegex(input.name.trim())}$`, 'i') },
+        ...(base ? [{ slug: new RegExp(`^${escapeRegex(base)}(-\\d+)?$`) }] : []),
+        { 'socialAccounts.url': { $in: linkPatterns } },
+      ],
+    })
+      .select('name slug headline photoUrl claimedBy')
+      .limit(5)
+    if (candidates.length > 0) {
+      const matches = candidates.map((p) => ({
+        _id: p._id,
+        name: p.name,
+        slug: p.slug,
+        headline: p.headline,
+        photoUrl: p.photoUrl,
+        claimed: Boolean(p.claimedBy),
+      }))
+      throw new AppError(
+        409,
+        'POSSIBLE_DUPLICATE',
+        'A profile like this already exists',
+        undefined,
+        { matches },
+      )
+    }
+  }
+
+  const [professions, industries, topics, slug] = await Promise.all([
+    resolveTaxonomySlugs(Profession, input.professions ?? [], 'professions'),
+    resolveTaxonomySlugs(Industry, input.industries ?? [], 'industries'),
+    resolveTaxonomySlugs(Topic, input.topics ?? [], 'topics'),
+    generateUniquePersonSlug(input.name),
+  ])
+
+  const { contactEmail, note, force: _force, ...profile } = input
+  const person = await Person.create({
+    ...profile,
+    slug,
+    professions,
+    industries,
+    topics,
+    visibility: 'hidden',
+    isDraft: true,
+    sourceRecords: [{ sourceType: 'self_submitted', note: 'Submitted by the person' }],
+  })
+
+  try {
+    const claim = await ProfileClaim.create({
+      person: person._id,
+      user: userId,
+      isNewProfile: true,
+      requestedName: person.name,
+      evidence: {
+        contactEmail: contactEmail || undefined,
+        links: [...new Set(input.socialAccounts.map((a) => a.url))].slice(0, 5),
+        note: note || undefined,
+      },
+    })
+    await writeAuditLog(req, {
+      action: 'claim.new_profile',
+      targetType: 'claim',
+      targetId: claim._id,
+      targetLabel: person.name,
+      after: { status: claim.status, isNewProfile: true, name: person.name },
+    })
+    await claim.populate({ path: 'person', select: PERSON_FIELDS })
+    sendSuccess(res, { claim }, 201)
+  } catch (error) {
+    // Claim na ban saka to akela draft na chhoro
+    await Person.deleteOne({ _id: person._id })
+    throw error
+  }
+}
+
+function escapeRegex(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 // GET /api/claims/mine -> mere claims (naye pehle)
@@ -188,12 +304,15 @@ export async function adminListClaims(req: Request, res: Response) {
   const statuses: ClaimStatus[] | null =
     query.status === 'all'
       ? null
-      : query.status === 'open'
+      : query.status === 'open' || query.status === 'new_profiles'
         ? OPEN_CLAIM_STATUSES
         : query.status === 'needs_action'
           ? NEEDS_ACTION_CLAIM_STATUSES
           : [query.status]
-  const filter = statuses ? { status: { $in: statuses } } : {}
+  const filter = {
+    ...(statuses && { status: { $in: statuses } }),
+    ...(query.status === 'new_profiles' && { isNewProfile: true }),
+  }
   const isOpen = statuses !== null && statuses.every((s) => OPEN_CLAIM_STATUSES.includes(s))
   const skip = (query.page - 1) * query.limit
 
@@ -272,6 +391,13 @@ async function approveClaim(claim: ClaimDoc, reviewedBy: string) {
   const reviewedAt = new Date()
   // Person ka maalik "people" service ke zariye set hota hai (document ka rule)
   await setPersonOwner(claim.person, claim.user)
+  // Talent ki khud bheji hui profile ab public
+  if (claim.isNewProfile) {
+    await Person.updateOne(
+      { _id: claim.person, isDraft: true },
+      { $set: { visibility: 'visible', isDraft: false } },
+    )
+  }
   claim.set({ status: 'approved', reviewedBy, reviewedAt })
   claim.verification.codeHash = undefined
   await claim.save()
@@ -337,6 +463,10 @@ export async function adminReviewClaim(req: Request, res: Response) {
     })
     claim.verification.codeHash = undefined
     await claim.save()
+    // Reject hui nayi profile ka chhupa draft mita do (sirf agar abhi bhi draft aur kisi ka nahi)
+    if (claim.isNewProfile) {
+      await Person.deleteOne({ _id: claim.person, isDraft: true, claimedBy: null })
+    }
   }
 
   await claim.populate(CLAIM_POPULATE)
