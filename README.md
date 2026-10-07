@@ -124,3 +124,33 @@ Public GETs send `Cache-Control: public, max-age=0, must-revalidate` (the browse
 ## Environment variables on Vercel
 
 `NODE_ENV`, `CLIENT_URL`, `MONGO_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (see `.env.example`).
+
+## Admin panel API (admin only)
+
+Every route below uses `requireAuth` + `requireRole('admin')`.
+
+| Method | URL | What |
+|---|---|---|
+| GET | `/api/admin/stats` | counts for people, users, claims and reports |
+| GET | `/api/admin/claims/:id` | one claim with person, claimant, evidence and audit history |
+| GET | `/api/admin/users?q=&role=&status=&page=&limit=` | users list |
+| PATCH | `/api/admin/users/:id/status` | body `status: active / suspended`. Not yourself; one active admin must remain |
+| PATCH | `/api/admin/users/:id/role` | body `role`. Same rules. Logs the user out (refresh tokens invalidated) |
+| GET | `/api/admin/reports?status=&reason=&page=&limit=` | reports queue (open first, oldest first) |
+| GET | `/api/admin/reports/:id` | report detail with audit history |
+| PATCH | `/api/admin/reports/:id` | body `status: reviewing / resolved / rejected, adminNote?, hidePerson?` |
+| GET | `/api/admin/audit-logs?action=&targetType=&targetId=&actor=&from=&to=&page=&limit=` | read-only audit log; `action` matches a prefix (`claim` finds `claim.approve`) |
+
+Public: `POST /api/reports` with `personId, reason, details, reporterName?, reporterEmail?` (email required for guests).
+
+### Audit log
+
+Every admin action is stored in the `audit_logs` collection: actor, action, target, before/after snapshot, IP and time. Actions: `person.create`, `person.update`, `person.delete`, `person.hide`, `claim.send_code`, `claim.approve`, `claim.reject`, `user.suspend`, `user.unsuspend`, `user.role_change`, `report.update`. Passwords, token versions and claim codes are never stored.
+
+## Tests
+
+```bash
+npm test
+```
+
+Jest + Supertest with an in-memory MongoDB (`mongodb-memory-server` downloads a MongoDB binary the first time). Each test file uses its own database.
