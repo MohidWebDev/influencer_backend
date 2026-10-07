@@ -80,7 +80,7 @@ router.post('/inquiries', requireAuth, requireRole('business', 'agency'), create
 | GET | `/api/people` | anyone | search: `q, profession, industry, topic, country, city, language, minFollowers, status, page, limit, sort (followers / newest / name)`. `profession/industry/topic` take slugs, comma separated |
 | GET | `/api/people/:slug` | anyone | public profile |
 | POST | `/api/people` | admin | create a profile (taxonomy as slugs) |
-| PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, verified, visibility` |
+| PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, verified, visibility`. On a claimed profile the admin can only change `verified` and `visibility` (403 `PROFILE_CLAIMED` otherwise) |
 | DELETE | `/api/people/:id` | admin | delete a profile permanently (prefer `visibility: hidden` for takedowns) |
 | GET | `/api/taxonomy/professions` (`industries`, `topics`) | anyone | dropdown lists |
 

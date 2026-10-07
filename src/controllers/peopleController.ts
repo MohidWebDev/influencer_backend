@@ -29,6 +29,9 @@ const TAXONOMY_POPULATE = [
 const LIST_FIELDS =
   'name slug headline photoUrl status professions country city totalFollowers verified isDemo'
 
+// Claimed profile pe admin sirf ye fields badal sakta hai
+const MODERATION_FIELDS = ['verified', 'visibility']
+
 const SORTS = {
   followers: { totalFollowers: -1, _id: 1 },
   newest: { createdAt: -1, _id: 1 },
@@ -134,10 +137,24 @@ export async function updatePerson(req: Request, res: Response) {
     throw new AppError(403, 'FORBIDDEN', 'You can only edit your own profile')
   }
 
-  // Owner sirf apne fields badal sakta hai, admin sab kuch
+  // Claimed profile ka maalik talent hai. Admin sirf moderation kar sakta hai
+  // (verify / hide), details edit nahi
+  const body = req.body ?? {}
+  if (isAdmin && !isOwner && person.claimedBy) {
+    const blocked = Object.keys(body).filter((key) => !MODERATION_FIELDS.includes(key))
+    if (blocked.length > 0) {
+      throw new AppError(
+        403,
+        'PROFILE_CLAIMED',
+        'This profile is claimed. Only its owner can edit it. Admins can only verify or hide it.',
+      )
+    }
+  }
+
+  // Owner sirf apne fields badal sakta hai, admin (unclaimed profile pe) sab kuch
   const input: AdminUpdatePersonInput = isAdmin
-    ? parseOrThrow(adminUpdatePersonSchema, req.body ?? {})
-    : parseOrThrow(updatePersonSchema, req.body ?? {})
+    ? parseOrThrow(adminUpdatePersonSchema, body)
+    : parseOrThrow(updatePersonSchema, body)
 
   const { professions, industries, topics, ...rest } = input
   person.set(rest)
