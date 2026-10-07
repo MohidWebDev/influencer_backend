@@ -15,7 +15,7 @@ export function errorHandler(
   res.removeHeader('CDN-Cache-Control')
 
   if (err instanceof AppError) {
-    return sendError(res, err.statusCode, err.code, err.message, err.fields)
+    return sendError(res, err.statusCode, err.code, err.message, err.fields, err.details)
   }
 
   // Ghalat JSON body (express.json parse nahi kar saka)

@@ -89,22 +89,42 @@ router.post('/inquiries', requireAuth, requireRole('business', 'agency'), create
 A talent says "this profile is me". We verify it with a one-time code sent to one of their official accounts:
 
 ```
-pending        talent sent a claim with official account links
-code_sent      admin generated a 6-digit code and sent it by DM to one of those links
-code_verified  talent entered the correct code on the website
-approved       admin gave final approval (person.claimedBy is set)
-rejected       admin rejected, or another claim for the same profile was approved
+pending             talent sent a claim with official account links
+waiting_for_talent  admin generated a 6-digit code (OTP) and sent it by DM to one of those links
+otp_failed          talent entered a wrong code 5 times; the claim is locked until the admin acts
+verified            identity confirmed: correct OTP (verificationMethod "otp") or by the admin ("admin_manual")
+approved            admin gave final approval (person.claimedBy is set)
+rejected            admin rejected, or another claim for the same profile was approved
 ```
+
+Flow:
+
+```
+pending -> waiting_for_talent -> (correct OTP) verified -> (admin approves) approved
+                    |  5 wrong codes
+                    v
+               otp_failed -> (admin: reset OTP) waiting_for_talent
+                          -> (admin: verify manually) verified + approved
+any open status -> (admin rejects) rejected
+```
+
+Claim fields for verification: `otpAttempts` (default 0), `otpLockedAt`, `lastOtpAttemptAt`, `verifiedAt`, `verifiedBy` (admin user id, `null` when the talent verified by OTP), `verificationMethod` (`otp` or `admin_manual`).
+
+Old claims are migrated when the server connects to MongoDB (`migrateLegacyClaims()`, safe to run many times): `code_sent` becomes `waiting_for_talent`, `code_verified` becomes `verified`, and `verification.attempts` moves to `otpAttempts`.
 
 | Method | URL | Who | What |
 |---|---|---|---|
 | POST | `/api/claims` | talent | body: `personId, links[] (min 1), contactEmail?, note?`. One open claim per user, one owned profile per user |
 | GET | `/api/claims/mine` | logged in | my claims, newest first |
 | GET | `/api/claims/my-profile` | logged in | the Person I own, or `null` |
-| POST | `/api/claims/:id/verify` | claim owner | body: `code`. 5 attempts, code expires after 48h |
-| GET | `/api/admin/claims?status=open` | admin | `open`, `needs_action`, or one status |
-| POST | `/api/admin/claims/:id/code` | admin | body: `channelUrl` (one of the claim links). Returns the code once |
-| PATCH | `/api/admin/claims/:id` | admin | body: `action: approve / reject, reason?`. Approve only after `code_verified` |
+| POST | `/api/claims/:id/verify` | claim owner | body: `code`. Wrong code: 400 `INVALID_CODE` with `error.details.attemptsLeft`. 5th wrong code or any try after: 423 `OTP_LOCKED`. Code expires after 48h (410 `CODE_EXPIRED`) |
+| GET | `/api/admin/claims?status=open` | admin | `open` (default), `needs_action` (pending, otp_failed, verified), `all`, or one status |
+| POST | `/api/admin/claims/:id/code` | admin | from `pending` / `waiting_for_talent`. body: `channelUrl` (one of the claim links). Returns the code once |
+| POST | `/api/admin/claims/:id/reset-otp` | admin | from `waiting_for_talent` / `otp_failed`. body: `channelUrl?` (default: the last link used). Resets attempts and lock, status back to `waiting_for_talent`, returns the new code once |
+| POST | `/api/admin/claims/:id/verify-manual` | admin | from `waiting_for_talent` / `otp_failed`. Marks the claim verified (`admin_manual`, `verifiedBy`) and approves it |
+| PATCH | `/api/admin/claims/:id` | admin | body: `action: approve / reject, reason?`. Approve only from `verified`; reject from any open status |
+
+Error responses can carry extra data in `error.details`, for example `{ "attemptsLeft": 3, "maxAttempts": 5 }`.
 
 Codes are stored as SHA-256 hashes (salted with the claim id) and compared in constant time. Generating a new code invalidates the old one and resets attempts. Approving sets `person.claimedBy` through `setPersonOwner()`, moves a `public` profile to `contactable`, and auto-rejects other open claims for the same profile.
 
@@ -145,7 +165,7 @@ Public: `POST /api/reports` with `personId, reason, details, reporterName?, repo
 
 ### Audit log
 
-Every admin action is stored in the `audit_logs` collection: actor, action, target, before/after snapshot, IP and time. Actions: `person.create`, `person.update`, `person.delete`, `person.hide`, `claim.send_code`, `claim.approve`, `claim.reject`, `user.suspend`, `user.unsuspend`, `user.role_change`, `report.update`. Passwords, token versions and claim codes are never stored.
+Every admin action (and an OTP lock) is stored in the `audit_logs` collection: actor, action, target, before/after snapshot, IP and time. Actions: `person.create`, `person.update`, `person.delete`, `person.hide`, `claim.send_code`, `claim.reset_otp`, `claim.verify_manual`, `claim.otp_locked` (written with the talent as the actor), `claim.approve`, `claim.reject`, `user.suspend`, `user.unsuspend`, `user.role_change`, `report.update`. Passwords, token versions and claim codes are never stored.
 
 ## Tests
 

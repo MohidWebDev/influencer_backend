@@ -1,5 +1,9 @@
 import type { Request, Response } from 'express'
-import { ProfileClaim } from '../models/ProfileClaim'
+import {
+  NEEDS_ACTION_CLAIM_STATUSES,
+  OPEN_CLAIM_STATUSES,
+  ProfileClaim,
+} from '../models/ProfileClaim'
 import { Report } from '../models/Report'
 import { User } from '../models/User'
 import { getPeopleStats } from '../services/personModerationService'
@@ -12,8 +16,8 @@ export async function adminGetStats(_req: Request, res: Response) {
       getPeopleStats(),
       User.aggregate<{ _id: string; count: number }>([{ $group: { _id: '$role', count: { $sum: 1 } } }]),
       User.countDocuments({ status: 'suspended' }),
-      ProfileClaim.countDocuments({ status: { $in: ['pending', 'code_verified'] } }),
-      ProfileClaim.countDocuments({ status: { $in: ['pending', 'code_sent', 'code_verified'] } }),
+      ProfileClaim.countDocuments({ status: { $in: NEEDS_ACTION_CLAIM_STATUSES } }),
+      ProfileClaim.countDocuments({ status: { $in: OPEN_CLAIM_STATUSES } }),
       Report.countDocuments({ status: 'open' }),
       Report.countDocuments({ status: 'reviewing' }),
     ])

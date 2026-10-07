@@ -1,14 +1,37 @@
 import { Schema, model, type Types } from 'mongoose'
 
-// pending       -> talent ne claim bheja, admin ko code bhejna hai
-// code_sent     -> admin ne talent ke official account pe code DM kiya
-// code_verified -> talent ne sahi code website pe daala, admin final approve karega
-// approved / rejected
-export const CLAIM_STATUSES = ['pending', 'code_sent', 'code_verified', 'approved', 'rejected'] as const
+// pending            -> talent ne claim bheja, admin ko code bhejna hai
+// waiting_for_talent -> admin ne talent ke official account pe code (OTP) DM kiya
+// otp_failed         -> talent ne 5 dafa ghalat code daala, claim lock ho gaya (admin dekhega)
+// verified           -> tasdeeq ho gayi: sahi OTP se, ya admin ne khud (admin_manual)
+// approved           -> admin ki final manzoori, person.claimedBy set
+// rejected           -> admin ne reject kiya
+export const CLAIM_STATUSES = [
+  'pending',
+  'waiting_for_talent',
+  'otp_failed',
+  'verified',
+  'approved',
+  'rejected',
+] as const
 export type ClaimStatus = (typeof CLAIM_STATUSES)[number]
 
+// Purane documents ke naam. Sirf enum mein hain taake purana data validation fail na kare;
+// connect hote hi migrateLegacyClaims() inhe naye naamon mein badal deta hai
+export const LEGACY_CLAIM_STATUSES = ['code_sent', 'code_verified'] as const
+
 // Jab tak claim in mein se kisi halat mein hai, woh "khula" hai
-export const OPEN_CLAIM_STATUSES: ClaimStatus[] = ['pending', 'code_sent', 'code_verified']
+export const OPEN_CLAIM_STATUSES: ClaimStatus[] = [
+  'pending',
+  'waiting_for_talent',
+  'otp_failed',
+  'verified',
+]
+// Jin pe admin ko kuch karna hai: code bhejna, lock dekhna, ya approve karna
+export const NEEDS_ACTION_CLAIM_STATUSES: ClaimStatus[] = ['pending', 'otp_failed', 'verified']
+
+export const VERIFICATION_METHODS = ['otp', 'admin_manual'] as const
+export type VerificationMethod = (typeof VERIFICATION_METHODS)[number]
 
 export const CODE_TTL_MS = 48 * 60 * 60 * 1000 // 48 ghante
 export const MAX_CODE_ATTEMPTS = 5
@@ -20,8 +43,6 @@ export interface IClaimVerification {
   codeHash?: string
   codeSentAt?: Date
   expiresAt?: Date
-  attempts: number
-  verifiedAt?: Date
 }
 
 // Talent kehta hai "ye profile meri hai". Admin code bhej kar tasdeeq karta hai
@@ -35,6 +56,14 @@ export interface IProfileClaim {
     note?: string
   }
   verification: IClaimVerification
+  // OTP ki ghalat koshishein (5 pe lock)
+  otpAttempts: number
+  otpLockedAt?: Date
+  lastOtpAttemptAt?: Date
+  // Kab, kisne aur kaise tasdeeq hui. verifiedBy null = talent ne OTP se khud kiya
+  verifiedAt?: Date
+  verifiedBy?: Types.ObjectId | null
+  verificationMethod?: VerificationMethod
   reviewedBy?: Types.ObjectId
   reviewedAt?: Date
   rejectionReason?: string
@@ -46,7 +75,11 @@ const profileClaimSchema = new Schema<IProfileClaim>(
   {
     person: { type: Schema.Types.ObjectId, ref: 'Person', required: true },
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    status: { type: String, enum: CLAIM_STATUSES, default: 'pending' },
+    status: {
+      type: String,
+      enum: [...CLAIM_STATUSES, ...LEGACY_CLAIM_STATUSES],
+      default: 'pending',
+    },
     evidence: {
       contactEmail: { type: String, trim: true, lowercase: true },
       links: [{ type: String, trim: true }],
@@ -57,9 +90,13 @@ const profileClaimSchema = new Schema<IProfileClaim>(
       codeHash: { type: String, select: false },
       codeSentAt: { type: Date },
       expiresAt: { type: Date },
-      attempts: { type: Number, default: 0 },
-      verifiedAt: { type: Date },
     },
+    otpAttempts: { type: Number, default: 0, min: 0 },
+    otpLockedAt: { type: Date },
+    lastOtpAttemptAt: { type: Date },
+    verifiedAt: { type: Date },
+    verifiedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    verificationMethod: { type: String, enum: VERIFICATION_METHODS },
     reviewedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     reviewedAt: { type: Date },
     rejectionReason: { type: String, trim: true, maxlength: 500 },
@@ -82,3 +119,24 @@ profileClaimSchema.index({ user: 1, createdAt: -1 })
 profileClaimSchema.index({ person: 1, status: 1 })
 
 export const ProfileClaim = model<IProfileClaim>('ProfileClaim', profileClaimSchema)
+
+// Purane claims ko naye status/fields mein badalta hai. Har bar chalana safe hai (idempotent)
+export async function migrateLegacyClaims() {
+  const collection = ProfileClaim.collection
+  await collection.updateMany({ status: 'code_sent' }, { $set: { status: 'waiting_for_talent' } })
+  await collection.updateMany({ status: 'code_verified' }, [
+    {
+      $set: {
+        status: 'verified',
+        verificationMethod: 'otp',
+        verifiedBy: null,
+        verifiedAt: { $ifNull: ['$verification.verifiedAt', '$updatedAt'] },
+      },
+    },
+  ])
+  // verification.attempts -> otpAttempts (na ho to 0)
+  await collection.updateMany({ otpAttempts: { $exists: false } }, [
+    { $set: { otpAttempts: { $ifNull: ['$verification.attempts', 0] } } },
+    { $unset: ['verification.attempts', 'verification.verifiedAt'] },
+  ])
+}

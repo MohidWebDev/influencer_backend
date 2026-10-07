@@ -16,9 +16,11 @@ async function makeVerifiedClaim() {
   const claim = await ProfileClaim.create({
     person: person._id,
     user: talent._id,
-    status: 'code_verified',
+    status: 'verified',
+    verificationMethod: 'otp',
+    verifiedAt: new Date(),
     evidence: { links: ['https://instagram.com/test'] },
-    verification: { channelUrl: 'https://instagram.com/test', attempts: 0, verifiedAt: new Date() },
+    verification: { channelUrl: 'https://instagram.com/test' },
   })
   return { person, talent, claim }
 }
@@ -28,7 +30,7 @@ describe('admin claims', () => {
     const { person, talent, claim } = await makeVerifiedClaim()
     const { agent } = await loginAs(app, 'admin')
 
-    const list = await agent.get('/api/admin/claims?status=code_verified')
+    const list = await agent.get('/api/admin/claims?status=verified')
     expect(list.status).toBe(200)
     expect(list.body.success).toBe(true)
     expect(list.body.meta.total).toBeGreaterThanOrEqual(1)
@@ -48,7 +50,7 @@ describe('admin claims', () => {
 
     const logs = await agent.get(`/api/admin/audit-logs?targetType=claim&targetId=${claim._id}`)
     expect(logs.body.data.logs[0].action).toBe('claim.approve')
-    expect(logs.body.data.logs[0].before.status).toBe('code_verified')
+    expect(logs.body.data.logs[0].before.status).toBe('verified')
     expect(logs.body.data.logs[0].after.status).toBe('approved')
   })
 

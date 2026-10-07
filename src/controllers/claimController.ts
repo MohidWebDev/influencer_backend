@@ -5,10 +5,12 @@ import { Person } from '../models/Person'
 import {
   CODE_TTL_MS,
   MAX_CODE_ATTEMPTS,
+  NEEDS_ACTION_CLAIM_STATUSES,
   OPEN_CLAIM_STATUSES,
   ProfileClaim,
   type ClaimStatus,
 } from '../models/ProfileClaim'
+import { writeAuditLog } from '../services/auditService'
 import { setPersonOwner } from '../services/personService'
 import { AppError } from '../utils/AppError'
 import { sendSuccess } from '../utils/apiResponse'
@@ -16,6 +18,7 @@ import { generateClaimCode, hashClaimCode, isClaimCodeValid } from '../utils/cla
 import { parseOrThrow } from '../utils/validation'
 import {
   adminListClaimsQuerySchema,
+  resetOtpSchema,
   reviewClaimSchema,
   sendCodeSchema,
   verifyCodeSchema,
@@ -26,7 +29,10 @@ const PERSON_FIELDS = 'name slug headline photoUrl claimedBy'
 const CLAIM_POPULATE = [
   { path: 'person', select: PERSON_FIELDS },
   { path: 'user', select: 'name email role' },
+  { path: 'verifiedBy', select: 'name email' },
 ]
+
+type ClaimDoc = Awaited<ReturnType<typeof findClaimOr404>>
 
 async function findClaimOr404(id: string) {
   if (!isValidObjectId(id)) throw new AppError(404, 'NOT_FOUND', 'Claim not found')
@@ -88,7 +94,7 @@ export async function getMyProfile(req: Request, res: Response) {
   sendSuccess(res, { person })
 }
 
-// POST /api/claims/:id/verify -> talent woh code daalta hai jo admin ne DM kiya
+// POST /api/claims/:id/verify -> talent woh code (OTP) daalta hai jo admin ne DM kiya
 export async function verifyClaimCode(req: Request, res: Response) {
   const { code } = parseOrThrow(verifyCodeSchema, req.body ?? {})
   const claim = await findClaimOr404(String(req.params.id))
@@ -97,28 +103,62 @@ export async function verifyClaimCode(req: Request, res: Response) {
   if (claim.user.toString() !== req.user!.id) {
     throw new AppError(404, 'NOT_FOUND', 'Claim not found')
   }
-  if (claim.status !== 'code_sent' || !claim.verification.codeHash) {
+  if (claim.status === 'otp_failed') {
+    throw otpLockedError()
+  }
+  if (claim.status !== 'waiting_for_talent' || !claim.verification.codeHash) {
     throw new AppError(409, 'NO_ACTIVE_CODE', 'There is no code to verify for this claim')
   }
   if (claim.verification.expiresAt && claim.verification.expiresAt < new Date()) {
     throw new AppError(410, 'CODE_EXPIRED', 'This code has expired. We will send you a new one.')
   }
-  if (claim.verification.attempts >= MAX_CODE_ATTEMPTS) {
-    throw new AppError(429, 'TOO_MANY_ATTEMPTS', 'Too many wrong attempts. We will send you a new code.')
-  }
 
+  const now = new Date()
   if (!isClaimCodeValid(code, claim.id, claim.verification.codeHash)) {
-    claim.verification.attempts += 1
+    const before = { status: claim.status, otpAttempts: claim.otpAttempts ?? 0 }
+    claim.otpAttempts = (claim.otpAttempts ?? 0) + 1
+    claim.lastOtpAttemptAt = now
+    const left = Math.max(MAX_CODE_ATTEMPTS - claim.otpAttempts, 0)
+
+    if (left === 0) {
+      // 5vi ghalat koshish: claim lock, ab koi OTP qabool nahi. Admin dekhega
+      claim.status = 'otp_failed'
+      claim.otpLockedAt = now
+      claim.verification.codeHash = undefined
+      await claim.save()
+      await writeAuditLog(req, {
+        action: 'claim.otp_locked',
+        targetType: 'claim',
+        targetId: claim._id,
+        targetLabel: await personName(claim),
+        before,
+        after: {
+          status: claim.status,
+          otpAttempts: claim.otpAttempts,
+          otpLockedAt: claim.otpLockedAt,
+        },
+      })
+      throw otpLockedError()
+    }
+
     await claim.save()
-    const left = MAX_CODE_ATTEMPTS - claim.verification.attempts
-    throw new AppError(400, 'INVALID_CODE', 'That code is not correct', {
-      code: left > 0 ? `Wrong code. ${left} attempt${left === 1 ? '' : 's'} left.` : 'Wrong code. No attempts left.',
-    })
+    throw new AppError(
+      400,
+      'INVALID_CODE',
+      'That code is not correct',
+      { code: `Wrong code. ${left} attempt${left === 1 ? '' : 's'} left.` },
+      { attemptsLeft: left, maxAttempts: MAX_CODE_ATTEMPTS },
+    )
   }
 
-  // Sahi code: ab admin final approve karega
-  claim.status = 'code_verified'
-  claim.verification.verifiedAt = new Date()
+  // Sahi code: tasdeeq ho gayi, ab admin final approve karega
+  claim.set({
+    status: 'verified',
+    verificationMethod: 'otp',
+    verifiedAt: now,
+    verifiedBy: null,
+    otpAttempts: 0,
+  })
   claim.verification.codeHash = undefined
   await claim.save()
 
@@ -126,17 +166,35 @@ export async function verifyClaimCode(req: Request, res: Response) {
   sendSuccess(res, { claim })
 }
 
+function otpLockedError() {
+  return new AppError(
+    423,
+    'OTP_LOCKED',
+    'Too many wrong attempts. Your claim is under review by the admin.',
+    undefined,
+    { attemptsLeft: 0, maxAttempts: MAX_CODE_ATTEMPTS },
+  )
+}
+
+async function personName(claim: ClaimDoc) {
+  const person = await Person.findById(claim.person).select('name')
+  return person?.name
+}
+
 // GET /api/admin/claims?status=open -> admin ke liye list
 export async function adminListClaims(req: Request, res: Response) {
   const query = parseOrThrow(adminListClaimsQuerySchema, req.query)
-  const statuses: ClaimStatus[] =
-    query.status === 'open'
-      ? OPEN_CLAIM_STATUSES
-      : query.status === 'needs_action'
-        ? ['pending', 'code_verified']
-        : [query.status]
-  const filter = { status: { $in: statuses } }
-  const isOpen = statuses.every((s) => OPEN_CLAIM_STATUSES.includes(s))
+  // 'all' = koi filter nahi: verified / approved claims bhi list mein rehte hain
+  const statuses: ClaimStatus[] | null =
+    query.status === 'all'
+      ? null
+      : query.status === 'open'
+        ? OPEN_CLAIM_STATUSES
+        : query.status === 'needs_action'
+          ? NEEDS_ACTION_CLAIM_STATUSES
+          : [query.status]
+  const filter = statuses ? { status: { $in: statuses } } : {}
+  const isOpen = statuses !== null && statuses.every((s) => OPEN_CLAIM_STATUSES.includes(s))
   const skip = (query.page - 1) * query.limit
 
   const [claims, total] = await Promise.all([
@@ -152,31 +210,40 @@ export async function adminListClaims(req: Request, res: Response) {
   sendSuccess(res, { claims }, 200, { page: query.page, limit: query.limit, total })
 }
 
-// POST /api/admin/claims/:id/code -> naya code banao. Admin isse khud DM karega
-export async function adminSendClaimCode(req: Request, res: Response) {
-  const { channelUrl } = parseOrThrow(sendCodeSchema, req.body ?? {})
-  const claim = await findClaimOr404(String(req.params.id))
-
-  if (!['pending', 'code_sent'].includes(claim.status)) {
-    throw new AppError(409, 'INVALID_STATE', `A code cannot be sent for a ${claim.status} claim`)
-  }
+// Naya code banao: purana code bekaar, koshishein 0, lock khatam, status waiting_for_talent
+function issueCode(claim: ClaimDoc, channelUrl: string) {
   // Code sirf talent ke diye hue links mein se kisi pe ja sakta hai
   if (!claim.evidence.links.includes(channelUrl)) {
     throw new AppError(400, 'VALIDATION_ERROR', 'Invalid input', {
       channelUrl: 'Choose one of the links the talent provided',
     })
   }
-
   const code = generateClaimCode()
   const now = new Date()
-  claim.status = 'code_sent'
+  claim.set({
+    status: 'waiting_for_talent',
+    otpAttempts: 0,
+    otpLockedAt: undefined,
+    lastOtpAttemptAt: undefined,
+  })
   claim.verification = {
     channelUrl,
     codeHash: hashClaimCode(code, claim.id),
     codeSentAt: now,
     expiresAt: new Date(now.getTime() + CODE_TTL_MS),
-    attempts: 0,
   }
+  return code
+}
+
+// POST /api/admin/claims/:id/code -> naya code banao. Admin isse khud DM karega
+export async function adminSendClaimCode(req: Request, res: Response) {
+  const { channelUrl } = parseOrThrow(sendCodeSchema, req.body ?? {})
+  const claim = await findClaimOr404(String(req.params.id))
+
+  if (!['pending', 'waiting_for_talent'].includes(claim.status)) {
+    throw new AppError(409, 'INVALID_STATE', `A code cannot be sent for a ${claim.status} claim`)
+  }
+  const code = issueCode(claim, channelUrl)
   await claim.save()
   await claim.populate(CLAIM_POPULATE)
 
@@ -184,7 +251,67 @@ export async function adminSendClaimCode(req: Request, res: Response) {
   sendSuccess(res, { claim, code })
 }
 
-// PATCH /api/admin/claims/:id -> approve (code verify hone ke baad) ya reject
+// POST /api/admin/claims/:id/reset-otp -> lock khol kar naya code (otp_failed / waiting_for_talent)
+export async function adminResetClaimOtp(req: Request, res: Response) {
+  const input = parseOrThrow(resetOtpSchema, req.body ?? {})
+  const claim = await findClaimOr404(String(req.params.id))
+
+  if (!['waiting_for_talent', 'otp_failed'].includes(claim.status)) {
+    throw new AppError(409, 'INVALID_STATE', `The code cannot be reset for a ${claim.status} claim`)
+  }
+  // Link na diya ho to wahi jahan pichla code gaya tha
+  const channelUrl = input.channelUrl ?? claim.verification.channelUrl ?? claim.evidence.links[0]
+  const code = issueCode(claim, channelUrl)
+  await claim.save()
+  await claim.populate(CLAIM_POPULATE)
+  sendSuccess(res, { claim, code })
+}
+
+// Final manzoori: person ka maalik set karo aur isi profile ke baqi khule claims reject
+async function approveClaim(claim: ClaimDoc, reviewedBy: string) {
+  const reviewedAt = new Date()
+  // Person ka maalik "people" service ke zariye set hota hai (document ka rule)
+  await setPersonOwner(claim.person, claim.user)
+  claim.set({ status: 'approved', reviewedBy, reviewedAt })
+  claim.verification.codeHash = undefined
+  await claim.save()
+
+  await ProfileClaim.updateMany(
+    { person: claim.person, status: { $in: OPEN_CLAIM_STATUSES }, _id: { $ne: claim._id } },
+    {
+      $set: {
+        status: 'rejected',
+        reviewedBy,
+        reviewedAt,
+        rejectionReason: 'Another claim for this profile was approved',
+      },
+      $unset: { 'verification.codeHash': 1 },
+    },
+  )
+}
+
+// POST /api/admin/claims/:id/verify-manual -> admin khud tasdeeq kare (OTP ke baghair)
+// aur foran approve: waiting_for_talent ya otp_failed se
+export async function adminVerifyClaimManually(req: Request, res: Response) {
+  const claim = await findClaimOr404(String(req.params.id))
+
+  if (!['waiting_for_talent', 'otp_failed'].includes(claim.status)) {
+    throw new AppError(409, 'INVALID_STATE', `A ${claim.status} claim cannot be verified manually`)
+  }
+
+  claim.set({
+    status: 'verified',
+    verificationMethod: 'admin_manual',
+    verifiedBy: req.user!.id,
+    verifiedAt: new Date(),
+  })
+  await approveClaim(claim, req.user!.id)
+
+  await claim.populate(CLAIM_POPULATE)
+  sendSuccess(res, { claim })
+}
+
+// PATCH /api/admin/claims/:id -> approve (verified ke baad) ya reject
 export async function adminReviewClaim(req: Request, res: Response) {
   const { action, reason } = parseOrThrow(reviewClaimSchema, req.body ?? {})
   const claim = await findClaimOr404(String(req.params.id))
@@ -197,27 +324,10 @@ export async function adminReviewClaim(req: Request, res: Response) {
   const reviewedAt = new Date()
 
   if (action === 'approve') {
-    if (claim.status !== 'code_verified') {
+    if (claim.status !== 'verified') {
       throw new AppError(409, 'CODE_NOT_VERIFIED', 'The talent has not entered the correct code yet')
     }
-    // Person ka maalik "people" service ke zariye set hota hai (document ka rule)
-    await setPersonOwner(claim.person, claim.user)
-    claim.set({ status: 'approved', reviewedBy, reviewedAt })
-    await claim.save()
-
-    // Isi profile ke baqi khule claims khud reject
-    await ProfileClaim.updateMany(
-      { person: claim.person, status: { $in: OPEN_CLAIM_STATUSES }, _id: { $ne: claim._id } },
-      {
-        $set: {
-          status: 'rejected',
-          reviewedBy,
-          reviewedAt,
-          rejectionReason: 'Another claim for this profile was approved',
-        },
-        $unset: { 'verification.codeHash': 1 },
-      },
-    )
+    await approveClaim(claim, reviewedBy)
   } else {
     claim.set({
       status: 'rejected',

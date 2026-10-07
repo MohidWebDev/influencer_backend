@@ -24,14 +24,19 @@ export const verifyCodeSchema = z.object({
     .regex(/^\d{6}$/, 'Enter the 6-digit code'),
 })
 
+// Reset: link optional, na ho to pichla link
+export const resetOtpSchema = z.object({
+  channelUrl: z.url('Choose one of the links').optional(),
+})
+
 export const reviewClaimSchema = z.object({
   action: z.enum(['approve', 'reject']),
   reason: z.string().trim().max(500).optional(),
 })
 
 export const adminListClaimsQuerySchema = z.object({
-  // open = jo abhi chal rahe hain, needs_action = jin pe admin ko kuch karna hai
-  status: z.enum([...CLAIM_STATUSES, 'open', 'needs_action']).default('open'),
+  // open = jo abhi chal rahe hain, needs_action = jin pe admin ko kuch karna hai, all = sab
+  status: z.enum([...CLAIM_STATUSES, 'open', 'needs_action', 'all']).default('open'),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 })

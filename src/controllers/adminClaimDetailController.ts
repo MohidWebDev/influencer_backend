@@ -14,6 +14,7 @@ export async function adminGetClaim(req: Request, res: Response) {
     { path: 'person', select: 'name slug headline photoUrl claimedBy status verified visibility' },
     { path: 'user', select: 'name email role status createdAt' },
     { path: 'reviewedBy', select: 'name email' },
+    { path: 'verifiedBy', select: 'name email' },
   ])
   if (!claim) throw new AppError(404, 'NOT_FOUND', 'Claim not found')
 

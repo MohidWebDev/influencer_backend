@@ -18,15 +18,16 @@ export function sendSuccess<T>(
 }
 
 // Har error response isi shape mein jata hai:
-// { success: false, error: { code, message, fields } }
+// { success: false, error: { code, message, fields, details? } }
 export function sendError(
   res: Response,
   statusCode: number,
   code: string,
   message: string,
   fields?: Record<string, string>,
+  details?: Record<string, unknown>,
 ) {
   return res
     .status(statusCode)
-    .json({ success: false, error: { code, message, fields } })
+    .json({ success: false, error: { code, message, fields, ...(details && { details }) } })
 }

@@ -2,8 +2,10 @@ import { Router } from 'express'
 import { adminGetPerson, adminListPeople } from '../controllers/adminController'
 import {
   adminListClaims,
+  adminResetClaimOtp,
   adminReviewClaim,
   adminSendClaimCode,
+  adminVerifyClaimManually,
 } from '../controllers/claimController'
 import { audit } from '../middlewares/audit'
 import { requireAuth } from '../middlewares/requireAuth'
@@ -29,6 +31,8 @@ router.get('/people', adminListPeople)
 router.get('/people/:id', adminGetPerson)
 router.get('/claims', adminListClaims)
 router.post('/claims/:id/code', auditClaim('claim.send_code'), adminSendClaimCode)
+router.post('/claims/:id/reset-otp', auditClaim('claim.reset_otp'), adminResetClaimOtp)
+router.post('/claims/:id/verify-manual', auditClaim('claim.verify_manual'), adminVerifyClaimManually)
 router.patch(
   '/claims/:id',
   auditClaim((req) => `claim.${req.body?.action === 'approve' ? 'approve' : 'reject'}`),
