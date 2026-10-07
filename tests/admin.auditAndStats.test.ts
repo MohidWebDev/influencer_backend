@@ -32,6 +32,19 @@ describe('audit log', () => {
     expect(after.body.meta.total).toBe(1)
   })
 
+  it('names quick verify and hide toggles separately', async () => {
+    const { agent: admin } = await loginAs(app, 'admin')
+    const person = await createPerson()
+
+    await admin.patch(`/api/people/${person._id}`).send({ verified: true })
+    await admin.patch(`/api/people/${person._id}`).send({ visibility: 'hidden' })
+    await admin.patch(`/api/people/${person._id}`).send({ visibility: 'visible' })
+
+    const logs = await admin.get(`/api/admin/audit-logs?targetId=${person._id}`)
+    const actions = logs.body.data.logs.map((l: { action: string }) => l.action).sort()
+    expect(actions).toEqual(['person.hide', 'person.unhide', 'person.verify'])
+  })
+
   it('never stores claim codes', async () => {
     const { ProfileClaim } = await import('../src/models/ProfileClaim')
     const { agent } = await loginAs(app, 'admin')

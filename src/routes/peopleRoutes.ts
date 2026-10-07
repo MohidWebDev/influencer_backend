@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Request } from 'express'
 import {
   createPerson,
   deletePerson,
@@ -16,6 +16,19 @@ import { getPersonSnapshot } from '../services/auditSnapshots'
 
 const router = Router()
 
+// Sirf verified ya sirf visibility badli ho to us ka apna naam, warna "person.update"
+function personUpdateAction(req: Request) {
+  const body = (req.body ?? {}) as { verified?: boolean; visibility?: string }
+  const keys = Object.keys(body)
+  if (keys.length === 1 && keys[0] === 'verified') {
+    return body.verified ? 'person.verify' : 'person.unverify'
+  }
+  if (keys.length === 1 && keys[0] === 'visibility') {
+    return body.visibility === 'hidden' ? 'person.hide' : 'person.unhide'
+  }
+  return 'person.update'
+}
+
 router.get('/', cachePublic(60), listPeople)
 router.get('/:slug', cachePublic(60), getPersonBySlug)
 router.post(
@@ -30,7 +43,7 @@ router.patch(
   '/:id',
   requireAuth,
   audit({
-    action: 'person.update',
+    action: personUpdateAction,
     targetType: 'person',
     pickTarget: (d) => d.person,
     loadBefore: (req) => getPersonSnapshot(String(req.params.id)),
