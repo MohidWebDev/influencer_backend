@@ -23,3 +23,9 @@ export async function getPeopleStats() {
 export async function personExists(personId: unknown) {
   return Person.exists({ _id: personId, visibility: 'visible' })
 }
+
+// Rule: verified sirf claimed profile ho sakti hai. Purane data mein jo unclaimed profile
+// verified hai uska badge hatao (har bar chalana safe hai)
+export async function unverifyUnclaimedPeople() {
+  await Person.updateMany({ claimedBy: null, verified: true }, { $set: { verified: false } })
+}

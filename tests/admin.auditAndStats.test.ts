@@ -34,7 +34,9 @@ describe('audit log', () => {
 
   it('names quick verify and hide toggles separately', async () => {
     const { agent: admin } = await loginAs(app, 'admin')
-    const person = await createPerson()
+    const { user: owner } = await loginAs(app, 'talent')
+    // Verify sirf claimed profile pe ho sakta hai
+    const person = await createPerson({ claimedBy: owner._id })
 
     await admin.patch(`/api/people/${person._id}`).send({ verified: true })
     await admin.patch(`/api/people/${person._id}`).send({ visibility: 'hidden' })

@@ -29,7 +29,6 @@ export const DEMO_PEOPLE: DemoPerson[] = [
     languages: ['en', 'ur'],
     country: 'PK',
     city: 'Lahore',
-    verified: true,
     social: [
       { platform: 'x', followers: 84000, engagementRate: 2.1 },
       { platform: 'linkedin', followers: 41000, engagementRate: 3.4 },
@@ -46,7 +45,6 @@ export const DEMO_PEOPLE: DemoPerson[] = [
     languages: ['ur', 'en'],
     country: 'PK',
     city: 'Islamabad',
-    verified: true,
     social: [
       { platform: 'x', followers: 1200000, engagementRate: 1.2 },
       { platform: 'youtube', followers: 650000, engagementRate: 4.0 },
@@ -79,7 +77,6 @@ export const DEMO_PEOPLE: DemoPerson[] = [
     languages: ['ur', 'en'],
     country: 'PK',
     city: 'Lahore',
-    verified: true,
     social: [
       { platform: 'youtube', followers: 230000, engagementRate: 3.9 },
       { platform: 'podcast', followers: 45000 },

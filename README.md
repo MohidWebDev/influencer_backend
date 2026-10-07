@@ -79,8 +79,8 @@ router.post('/inquiries', requireAuth, requireRole('business', 'agency'), create
 |---|---|---|---|
 | GET | `/api/people` | anyone | search: `q, profession, industry, topic, country, city, language, minFollowers, status, page, limit, sort (followers / newest / name)`. `profession/industry/topic` take slugs, comma separated |
 | GET | `/api/people/:slug` | anyone | public profile |
-| POST | `/api/people` | admin | create a profile (taxonomy as slugs) |
-| PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, verified, visibility`. On a claimed profile the admin can only change `verified` and `visibility` (403 `PROFILE_CLAIMED` otherwise) |
+| POST | `/api/people` | admin | create a profile (taxonomy as slugs). A new profile cannot be `verified` (409 `PROFILE_NOT_CLAIMED`) |
+| PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, verified, visibility`. On a claimed profile the admin can only change `verified` and `visibility` (403 `PROFILE_CLAIMED` otherwise). `verified: true` only works on a claimed profile (409 `PROFILE_NOT_CLAIMED`); removing the badge always works |
 | DELETE | `/api/people/:id` | admin | delete a profile permanently (prefer `visibility: hidden` for takedowns) |
 | GET | `/api/taxonomy/professions` (`industries`, `topics`) | anyone | dropdown lists |
 
@@ -110,7 +110,7 @@ any open status -> (admin rejects) rejected
 
 Claim fields for verification: `otpAttempts` (default 0), `otpLockedAt`, `lastOtpAttemptAt`, `verifiedAt`, `verifiedBy` (admin user id, `null` when the talent verified by OTP), `verificationMethod` (`otp` or `admin_manual`).
 
-Old claims are migrated when the server connects to MongoDB (`migrateLegacyClaims()`, safe to run many times): `code_sent` becomes `waiting_for_talent`, `code_verified` becomes `verified`, and `verification.attempts` moves to `otpAttempts`.
+Old claims are migrated when the server connects to MongoDB (`migrateLegacyClaims()`, safe to run many times). On the same connect, unclaimed profiles lose the `verified` badge (`unverifyUnclaimedPeople()`), because only a claimed profile can be verified: `code_sent` becomes `waiting_for_talent`, `code_verified` becomes `verified`, and `verification.attempts` moves to `otpAttempts`.
 
 | Method | URL | Who | What |
 |---|---|---|---|

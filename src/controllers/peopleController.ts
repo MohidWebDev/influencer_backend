@@ -99,6 +99,8 @@ export async function getPersonBySlug(req: Request, res: Response) {
 // POST /api/people -> sirf admin naya profile banata hai
 export async function createPerson(req: Request, res: Response) {
   const input = req.body as CreatePersonInput
+  // Nayi profile kisi ki claim ki hui nahi hoti, is liye verified bhi nahi ho sakti
+  if (input.verified) throw notClaimedError()
 
   const [professions, industries, topics, slug] = await Promise.all([
     resolveTaxonomySlugs(Profession, input.professions ?? [], 'professions'),
@@ -120,6 +122,14 @@ export async function createPerson(req: Request, res: Response) {
 
   await person.populate(TAXONOMY_POPULATE)
   sendSuccess(res, { person }, 201)
+}
+
+function notClaimedError() {
+  return new AppError(
+    409,
+    'PROFILE_NOT_CLAIMED',
+    'A profile can only be verified after a talent has claimed it',
+  )
 }
 
 // PATCH /api/people/:id -> admin, ya jis user ne profile claim kiya
@@ -155,6 +165,11 @@ export async function updatePerson(req: Request, res: Response) {
   const input: AdminUpdatePersonInput = isAdmin
     ? parseOrThrow(adminUpdatePersonSchema, body)
     : parseOrThrow(updatePersonSchema, body)
+
+  // Verify sirf tab jab koi talent profile claim kar chuka ho. Unverify hamesha ho sakta hai
+  if (input.verified === true && !person.verified && !person.claimedBy) {
+    throw notClaimedError()
+  }
 
   const { professions, industries, topics, ...rest } = input
   person.set(rest)
