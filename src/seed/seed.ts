@@ -8,6 +8,7 @@
 import mongoose, { type Model } from 'mongoose'
 import { connectDB } from '../config/db'
 import { Person } from '../models/Person'
+import { ProfileClaim } from '../models/ProfileClaim'
 import { Industry, Profession, Topic, type ITaxonomyItem } from '../models/taxonomy'
 import { generateUniquePersonSlug, resolveTaxonomySlugs } from '../services/personService'
 import { slugify } from '../utils/slugify'
@@ -28,8 +29,16 @@ async function upsertTaxonomy(TaxonomyModel: Model<ITaxonomyItem>, names: string
   console.log(`  ${TaxonomyModel.modelName}: ${names.length}`)
 }
 
+// Demo profiles aur un ke claims saath mitao (warna claim ka person null reh jata hai)
+async function removeDemoPeople() {
+  const ids = await Person.find({ isDemo: true }).distinct('_id')
+  await ProfileClaim.deleteMany({ person: { $in: ids } })
+  const { deletedCount } = await Person.deleteMany({ _id: { $in: ids } })
+  return deletedCount
+}
+
 async function seedDemoPeople() {
-  await Person.deleteMany({ isDemo: true })
+  await removeDemoPeople()
 
   for (const demo of DEMO_PEOPLE) {
     const [professions, industries, topics, slug] = await Promise.all([
@@ -71,7 +80,7 @@ async function main() {
   console.log(`Connected to ${mongoose.connection.name}`)
 
   if (args.includes('--clear-demo')) {
-    const { deletedCount } = await Person.deleteMany({ isDemo: true })
+    const deletedCount = await removeDemoPeople()
     console.log(`Removed ${deletedCount} demo people`)
     return
   }

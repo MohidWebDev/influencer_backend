@@ -134,6 +134,29 @@ export async function migrateLegacyClaims() {
       },
     },
   ])
+  // Jin khule claims ki profile delete ho chuki hai unhe reject karo (delete nahi), taake
+  // admin list crash na ho aur talent naya claim bhej sake
+  const orphans = await collection
+    .aggregate<{ _id: Types.ObjectId }>([
+      { $match: { status: { $in: [...OPEN_CLAIM_STATUSES, ...LEGACY_CLAIM_STATUSES] } } },
+      { $lookup: { from: 'people', localField: 'person', foreignField: '_id', as: 'p' } },
+      { $match: { p: { $size: 0 } } },
+      { $project: { _id: 1 } },
+    ])
+    .toArray()
+  if (orphans.length > 0) {
+    await collection.updateMany(
+      { _id: { $in: orphans.map((o) => o._id) } },
+      {
+        $set: {
+          status: 'rejected',
+          reviewedAt: new Date(),
+          rejectionReason: 'This profile was removed',
+        },
+        $unset: { 'verification.codeHash': 1 },
+      },
+    )
+  }
   // verification.attempts -> otpAttempts (na ho to 0)
   await collection.updateMany({ otpAttempts: { $exists: false } }, [
     { $set: { otpAttempts: { $ifNull: ['$verification.attempts', 0] } } },

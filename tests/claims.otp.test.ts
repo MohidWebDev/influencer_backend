@@ -131,4 +131,18 @@ describe('claim OTP', () => {
     expect(done?.verificationMethod).toBe('otp')
     expect(done?.verifiedAt?.toISOString()).toBe(verifiedAt.toISOString())
   })
+
+  it('rejects open claims whose profile was deleted, so lists do not break', async () => {
+    const { ProfileClaim, migrateLegacyClaims } = await import('../src/models/ProfileClaim')
+    const { Person } = await import('../src/models/Person')
+    const person = await createPerson()
+    const { user } = await loginAs(app, 'talent')
+    const claim = await ProfileClaim.create({ person: person._id, user: user._id, evidence: { links: [LINK] } })
+    await Person.deleteOne({ _id: person._id })
+
+    await migrateLegacyClaims()
+    const after = await ProfileClaim.findById(claim._id).lean()
+    expect(after?.status).toBe('rejected')
+    expect(after?.rejectionReason).toBe('This profile was removed')
+  })
 })
