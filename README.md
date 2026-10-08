@@ -39,8 +39,12 @@ Run these locally with `MONGO_URI` in `.env` pointing at the database you want t
 npm run seed              # professions, industries, topics (safe to run again)
 npm run seed:demo         # taxonomy + 12 fictional sample people (isDemo: true)
 npm run seed:clear-demo   # remove the sample people
+npm run seed:real         # remove the sample people, add 30 real public profiles + Wikipedia photos
+npm run seed:real -- --no-photos   # same, without downloading photos
 npm run make-admin -- you@example.com   # make a registered user an admin
 ```
+
+`seed:real` is safe to run again: people are upserted by slug, and `claimedBy` / `verified` are only set when a profile is first created, so an approved claim is never undone. Photos come from each person's English Wikipedia lead image. Only Wikimedia Commons files with a free license (CC0, CC BY, CC BY-SA, public domain, GFDL) are used, at 600px width, and they are saved in the `personphotos` collection with the author and license in `photoCredit`. Anyone without a usable image gets the initials avatar. The script needs internet access to `en.wikipedia.org`, `commons.wikimedia.org` and `upload.wikimedia.org`. If a download fails, the person keeps their current photo and the script says to run it again.
 
 ## Request flow
 
@@ -84,6 +88,7 @@ router.post('/inquiries', requireAuth, requireRole('business', 'agency'), create
 |---|---|---|---|
 | GET | `/api/people` | anyone | search: `q, profession, industry, topic, country, city, language, minFollowers, status, page, limit, sort (followers / newest / name)`. `profession/industry/topic` take slugs, comma separated |
 | GET | `/api/people/:slug` | anyone | public profile |
+| GET | `/api/people/photos/:id` | anyone | profile photo stored in MongoDB (`photoUrl` points here). Cached for a year: a new photo gets a new id |
 | POST | `/api/people` | admin | create a profile (taxonomy as slugs). A new profile cannot be `verified` (409 `PROFILE_NOT_CLAIMED`) |
 | PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, verified, visibility`. On a claimed profile the admin can only change `verified` and `visibility` (403 `PROFILE_CLAIMED` otherwise). `verified: true` only works on a claimed profile (409 `PROFILE_NOT_CLAIMED`); removing the badge always works |
 | DELETE | `/api/people/:id` | admin | delete a profile permanently (prefer `visibility: hidden` for takedowns) |

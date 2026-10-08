@@ -11,6 +11,7 @@
     "seed": "tsx src/seed/seed.ts",
     "seed:demo": "tsx src/seed/seed.ts --demo",
     "seed:clear-demo": "tsx src/seed/seed.ts --clear-demo",
+    "seed:real": "tsx src/seed/seed.ts --real",
     "make-admin": "tsx src/seed/makeAdmin.ts",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand"
   },

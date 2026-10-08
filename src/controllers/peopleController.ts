@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import { isValidObjectId, type QueryFilter } from 'mongoose'
 import '../types/express'
 import { Person, type IPerson } from '../models/Person'
+import { PersonPhoto } from '../models/PersonPhoto'
 import { ProfileClaim } from '../models/ProfileClaim'
 import { Industry, Profession, Topic } from '../models/taxonomy'
 import {
@@ -27,7 +28,7 @@ const TAXONOMY_POPULATE = [
 
 // Search results ke card ke liye sirf zaroori fields
 const LIST_FIELDS =
-  'name slug headline photoUrl status professions country city totalFollowers verified isDemo'
+  'name slug headline photoUrl status professions country city totalFollowers verified isDemo claimedBy'
 
 // Claimed profile pe admin sirf ye fields badal sakta hai
 const MODERATION_FIELDS = ['verified', 'visibility']
@@ -94,6 +95,19 @@ export async function getPersonBySlug(req: Request, res: Response) {
 
   if (!person) throw new AppError(404, 'NOT_FOUND', 'Profile not found')
   sendSuccess(res, { person })
+}
+
+// GET /api/people/photos/:id -> profile photo ki file. Id har nayi photo pe badalti hai,
+// is liye browser aur CDN hamesha ke liye cache kar sakte hain
+export async function getPersonPhoto(req: Request, res: Response) {
+  const id = String(req.params.id)
+  const photo = isValidObjectId(id) ? await PersonPhoto.findById(id) : null
+  if (!photo) throw new AppError(404, 'NOT_FOUND', 'Photo not found')
+
+  res.set('Content-Type', photo.contentType)
+  res.set('Cache-Control', 'public, max-age=31536000, immutable')
+  res.set('CDN-Cache-Control', 'max-age=31536000')
+  res.send(photo.data)
 }
 
 // POST /api/people -> sirf admin naya profile banata hai
@@ -182,6 +196,8 @@ export async function updatePerson(req: Request, res: Response) {
 
   const { professions, industries, topics, ...rest } = input
   person.set(rest)
+  // Nayi photo lagi to purani photo ka credit ab sahi nahi
+  if (person.isModified('photoUrl')) person.photoCredit = undefined
 
   if (professions) {
     person.professions = await resolveTaxonomySlugs(Profession, professions, 'professions')
@@ -207,6 +223,7 @@ export async function deletePerson(req: Request, res: Response) {
   if (!person) throw new AppError(404, 'NOT_FOUND', 'Profile not found')
   // Is profile ke claims bhi saaf karo
   await ProfileClaim.deleteMany({ person: person._id })
+  await PersonPhoto.deleteMany({ person: person._id })
 
   sendSuccess(res, { deleted: true, id, slug: person.slug })
 }

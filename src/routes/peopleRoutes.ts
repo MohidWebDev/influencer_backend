@@ -3,6 +3,7 @@ import {
   createPerson,
   deletePerson,
   getPersonBySlug,
+  getPersonPhoto,
   listPeople,
   updatePerson,
 } from '../controllers/peopleController'
@@ -30,6 +31,7 @@ function personUpdateAction(req: Request) {
 }
 
 router.get('/', cachePublic(60), listPeople)
+router.get('/photos/:id', getPersonPhoto)
 router.get('/:slug', cachePublic(60), getPersonBySlug)
 router.post(
   '/',

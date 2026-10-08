@@ -28,6 +28,11 @@ export const PROFESSIONS = [
   'Religious Scholar',
   'Fitness Trainer',
   'Gamer / Streamer',
+  'Cricketer',
+  'Footballer',
+  'Singer',
+  'TikToker',
+  'Filmmaker',
 ]
 
 export const INDUSTRIES = [
@@ -52,6 +57,8 @@ export const INDUSTRIES = [
   'Art & Culture',
   'Science',
   'Law',
+  'Film & TV',
+  'Content Creation',
 ]
 
 export const TOPICS = [
@@ -104,4 +111,15 @@ export const TOPICS = [
   'Poetry',
   'Urdu Literature',
   'Motivation',
+  'Philanthropy',
+  'Documentary',
+  'Tech Reviews',
+  'Makeup',
+  'Dance',
+  'Athletics',
+  'Olympics',
+  'Engineering',
+  'Podcasting',
+  'Lifestyle',
+  'Television',
 ]

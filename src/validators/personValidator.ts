@@ -8,6 +8,14 @@ import {
 
 // Khali string bhejo to field saaf ho jaye
 const optionalUrl = z.union([z.url('Enter a valid URL'), z.literal('')]).optional()
+// Photo: bahar ka link, ya hamari apni save ki hui photo (seed se)
+const photoUrl = z
+  .union([
+    z.url('Enter a valid URL'),
+    z.string().regex(/^\/api\/people\/photos\/[a-f0-9]{24}$/),
+    z.literal(''),
+  ])
+  .optional()
 const slugList = z.array(z.string().trim().toLowerCase().min(1)).max(10)
 
 const socialAccountSchema = z.object({
@@ -28,7 +36,7 @@ const sourceRecordSchema = z.object({
 const editableFields = {
   headline: z.string().trim().max(160).optional(),
   bio: z.string().trim().max(3000).optional(),
-  photoUrl: optionalUrl,
+  photoUrl,
   websiteUrl: optionalUrl,
   languages: z.array(z.enum(LANGUAGE_CODES)).max(10).optional(),
   country: z

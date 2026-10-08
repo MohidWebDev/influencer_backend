@@ -4,15 +4,18 @@
   npm run seed              -> sirf taxonomy (professions, industries, topics)
   npm run seed:demo         -> taxonomy + farzi sample profiles
   npm run seed:clear-demo   -> sample profiles hata do
+  npm run seed:real         -> farzi profiles hata kar 30 asal public profiles + Wikipedia photos
+                               (dobara chalana safe hai: slug se upsert)
+  npm run seed:real -- --no-photos   -> photos ke baghair (sirf text data)
 */
 import mongoose, { type Model } from 'mongoose'
 import { connectDB } from '../config/db'
 import { Person } from '../models/Person'
-import { ProfileClaim } from '../models/ProfileClaim'
 import { Industry, Profession, Topic, type ITaxonomyItem } from '../models/taxonomy'
 import { generateUniquePersonSlug, resolveTaxonomySlugs } from '../services/personService'
 import { slugify } from '../utils/slugify'
 import { DEMO_PEOPLE } from './demoPeople'
+import { removeDemoPeople, seedRealPeople } from './peopleSeed'
 import { INDUSTRIES, PROFESSIONS, TOPICS } from './taxonomyData'
 
 async function upsertTaxonomy(TaxonomyModel: Model<ITaxonomyItem>, names: string[]) {
@@ -27,14 +30,6 @@ async function upsertTaxonomy(TaxonomyModel: Model<ITaxonomyItem>, names: string
     })),
   )
   console.log(`  ${TaxonomyModel.modelName}: ${names.length}`)
-}
-
-// Demo profiles aur un ke claims saath mitao (warna claim ka person null reh jata hai)
-async function removeDemoPeople() {
-  const ids = await Person.find({ isDemo: true }).distinct('_id')
-  await ProfileClaim.deleteMany({ person: { $in: ids } })
-  const { deletedCount } = await Person.deleteMany({ _id: { $in: ids } })
-  return deletedCount
 }
 
 async function seedDemoPeople() {
@@ -89,6 +84,11 @@ async function main() {
   await upsertTaxonomy(Profession, PROFESSIONS)
   await upsertTaxonomy(Industry, INDUSTRIES)
   await upsertTaxonomy(Topic, TOPICS)
+
+  if (args.includes('--real')) {
+    console.log('Seeding real public profiles...')
+    await seedRealPeople(!args.includes('--no-photos'))
+  }
 
   if (args.includes('--demo')) {
     console.log('Seeding demo people...')

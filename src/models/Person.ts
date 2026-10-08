@@ -26,12 +26,24 @@ export interface ISourceRecord {
   retrievedAt: Date
 }
 
+// Photo kahan se aayi aur kis license pe (jaise Wikimedia Commons, CC BY-SA 4.0)
+export interface IPhotoCredit {
+  provider: string
+  author?: string
+  license: string
+  licenseUrl?: string
+  sourceUrl: string
+}
+
 export interface IPerson {
   name: string
   slug: string
   headline?: string
   bio?: string
   photoUrl?: string
+  photoCredit?: IPhotoCredit
+  // Profile kis qism ke account ke liye hai (abhi sab "talent")
+  roles: string[]
   status: ProfileStatus
   professions: Types.ObjectId[]
   industries: Types.ObjectId[]
@@ -77,6 +89,17 @@ const sourceRecordSchema = new Schema<ISourceRecord>(
   { _id: false },
 )
 
+const photoCreditSchema = new Schema<IPhotoCredit>(
+  {
+    provider: { type: String, required: true, trim: true },
+    author: { type: String, trim: true, maxlength: 300 },
+    license: { type: String, required: true, trim: true },
+    licenseUrl: { type: String, trim: true },
+    sourceUrl: { type: String, required: true, trim: true },
+  },
+  { _id: false },
+)
+
 const personSchema = new Schema<IPerson>(
   {
     name: { type: String, required: true, trim: true, maxlength: 120 },
@@ -84,6 +107,8 @@ const personSchema = new Schema<IPerson>(
     headline: { type: String, trim: true, maxlength: 160 },
     bio: { type: String, trim: true, maxlength: 3000 },
     photoUrl: { type: String, trim: true },
+    photoCredit: { type: photoCreditSchema, default: undefined },
+    roles: { type: [String], default: ['talent'] },
     status: { type: String, enum: PROFILE_STATUSES, default: 'public' },
     professions: [{ type: Schema.Types.ObjectId, ref: 'Profession' }],
     industries: [{ type: Schema.Types.ObjectId, ref: 'Industry' }],
