@@ -6,6 +6,8 @@ export interface RealPerson {
   slug: string
   // English Wikipedia article ka title (photo aur source ke liye)
   wikiTitle: string
+  // wikiTitle ka article na mile to ye titles bhi try karo
+  altWikiTitles?: string[]
   headline: string
   bio: string
   country: string
@@ -140,6 +142,7 @@ export const REAL_PEOPLE: RealPerson[] = [
     name: 'Ducky Bhai',
     slug: 'ducky-bhai',
     wikiTitle: 'Ducky_Bhai',
+    altWikiTitles: ['Saad_Ur_Rehman', 'Saad_ur_Rehman'],
     headline: 'Pakistani YouTuber and content creator',
     bio: 'Ducky Bhai, whose real name is Saad ur Rehman, is a Pakistani YouTuber and content creator.',
     country: 'PK',

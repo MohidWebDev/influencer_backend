@@ -3,7 +3,8 @@ import request from 'supertest'
 import { loginAs, setupApp, teardownDb } from './helpers'
 
 let app: Express
-const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex')
+let IMAGE: Buffer
+let flaky = new Set<string>()
 
 // Har title ke liye Wikipedia ka nakli jawab
 const SPECIAL: Record<string, 'missing' | 'local' | 'nc' | 'offline'> = {
@@ -18,6 +19,11 @@ function json(body: unknown, status = 200) {
 }
 
 beforeAll(async () => {
+  const { default: sharp } = await import('sharp')
+  // Asal JPEG (1200px), taake 600px WebP mein badalna test ho
+  IMAGE = await sharp({ create: { width: 1200, height: 1500, channels: 3, background: '#7a8899' } })
+    .jpeg()
+    .toBuffer()
   app = await setupApp('real_seed')
   const { Industry, Profession, Topic } = await import('../src/models/taxonomy')
   const { INDUSTRIES, PROFESSIONS, TOPICS } = await import('../src/seed/taxonomyData')
@@ -31,6 +37,14 @@ beforeAll(async () => {
     if (url.host === 'en.wikipedia.org') {
       const title = decodeURIComponent(url.pathname.split('/').pop()!)
       if (offline.has(title)) throw new Error('getaddrinfo ENOTFOUND')
+      // Pehli dafa 503, phir theek (dobara try hona chahiye)
+      if (flaky.has(title)) {
+        flaky.delete(title)
+        return json({}, 503)
+      }
+      if (title === 'Saad_Ur_Rehman') {
+        return json({ content_urls: { desktop: { page: 'https://en.wikipedia.org/wiki/Saad_Ur_Rehman' } } })
+      }
       const kind = SPECIAL[title]
       if (kind === 'missing') return json({}, 404)
       const folder = kind === 'local' ? 'en' : 'commons'
@@ -64,7 +78,7 @@ beforeAll(async () => {
         },
       })
     }
-    return new Response(PNG, { status: 200, headers: { 'content-type': 'image/png' } })
+    return new Response(IMAGE, { status: 200, headers: { 'content-type': 'image/jpeg' } })
   })
 })
 afterAll(async () => {
@@ -73,6 +87,12 @@ afterAll(async () => {
 })
 
 describe('real people seed', () => {
+  it('treats only free licenses as usable', async () => {
+    const { isFreeLicense } = await import('../src/seed/wikimediaPhotos')
+    expect(['CC BY-SA 4.0', 'CC BY 2.0', 'CC0', 'Public domain', 'GODL-India'].every((l) => isFreeLicense(l))).toBe(true)
+    expect(['CC BY-NC 2.0', 'CC BY-ND 4.0', 'Fair use'].some((l) => isFreeLicense(l))).toBe(false)
+  })
+
   it('replaces demo people, stores free photos and is safe to run again', async () => {
     const { Person } = await import('../src/models/Person')
     const { PersonPhoto } = await import('../src/models/PersonPhoto')
@@ -86,6 +106,7 @@ describe('real people seed', () => {
     await ProfileClaim.create({ person: demo._id, user: user._id, status: 'pending' }).catch(() => undefined)
     const usersBefore = await User.countDocuments()
 
+    flaky = new Set(['Babar_Azam'])
     await seedRealPeople(true)
 
     expect(await Person.exists({ slug: 'fake-person' })).toBeNull()
@@ -107,7 +128,7 @@ describe('real people seed', () => {
       sourceUrl: 'https://commons.wikimedia.org/wiki/File:Babar_Azam.jpg',
     })
 
-    // Non-free, Commons pe nahi, ya article nahi -> initials avatar
+    // Non-free, Commons pe nahi, ya lead image nahi -> initials avatar
     for (const slug of ['rihanna', 'huda-kattan', 'ducky-bhai']) {
       const p = await Person.findOne({ slug })
       expect(p!.photoUrl).toBeUndefined()
@@ -117,9 +138,16 @@ describe('real people seed', () => {
     // Photo khud hamare server se aati hai
     const photo = await request(app).get(babar!.photoUrl!)
     expect(photo.status).toBe(200)
-    expect(photo.headers['content-type']).toBe('image/png')
+    expect(photo.headers['content-type']).toBe('image/webp')
     expect(photo.headers['cache-control']).toContain('immutable')
-    expect(Buffer.compare(photo.body, PNG)).toBe(0)
+    const { default: sharp } = await import('sharp')
+    const meta = await sharp(photo.body).metadata()
+    expect(meta.format).toBe('webp')
+    expect(meta.width).toBe(600)
+
+    // Ducky_Bhai ka article nahi: mutabadil title ka article source banta hai
+    const ducky = await Person.findOne({ slug: 'ducky-bhai' })
+    expect(ducky!.sourceRecords[0].url).toBe('https://en.wikipedia.org/wiki/Saad_Ur_Rehman')
 
     // Public API: filter by industry / profession, slug wala profile
     const cricketers = await request(app).get('/api/people?profession=cricketer&limit=50')

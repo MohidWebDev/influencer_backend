@@ -59,10 +59,17 @@ async function upsertRealPerson(real: RealPerson) {
 // Photo: Wikipedia lead image (sirf free license) -> MongoDB. Na mile to initials avatar
 async function syncPhoto(personId: Types.ObjectId, real: RealPerson) {
   try {
-    const result = await fetchWikiPhoto(real.wikiTitle)
+    const result = await fetchWikiPhoto([real.wikiTitle, ...(real.altWikiTitles ?? [])])
     if (result.status !== 'ok') {
       await PersonPhoto.deleteMany({ person: personId })
-      await Person.updateOne({ _id: personId }, { $unset: { photoUrl: 1, photoCredit: 1 } })
+      await Person.updateOne(
+        { _id: personId },
+        {
+          $unset: { photoUrl: 1, photoCredit: 1 },
+          // Mutabadil title ka article mila ho to source bhi wohi
+          ...(result.status !== 'no-article' && { $set: { 'sourceRecords.0.url': result.pageUrl } }),
+        },
+      )
       return { outcome: 'fallback' as PhotoOutcome, note: result.reason }
     }
     const photo = await PersonPhoto.create({
@@ -105,7 +112,7 @@ export async function seedRealPeople(withPhotos: boolean) {
     report.push({ name: real.name, slug: real.slug, ...photo })
     console.log(`  ${photo.outcome.padEnd(8)} ${real.name} (${photo.note})`)
     // Wikimedia pe bojh na daalo
-    if (withPhotos && process.env.NODE_ENV !== 'test') await new Promise((resolve) => setTimeout(resolve, 300))
+    if (withPhotos && process.env.NODE_ENV !== 'test') await new Promise((resolve) => setTimeout(resolve, 1000))
   }
 
   const count = (outcome: PhotoOutcome) => report.filter((r) => r.outcome === outcome)

@@ -44,7 +44,7 @@ npm run seed:real -- --no-photos   # same, without downloading photos
 npm run make-admin -- you@example.com   # make a registered user an admin
 ```
 
-`seed:real` is safe to run again: people are upserted by slug, and `claimedBy` / `verified` are only set when a profile is first created, so an approved claim is never undone. Photos come from each person's English Wikipedia lead image. Only Wikimedia Commons files with a free license (CC0, CC BY, CC BY-SA, public domain, GFDL) are used, at 600px width, and they are saved in the `personphotos` collection with the author and license in `photoCredit`. Anyone without a usable image gets the initials avatar. The script needs internet access to `en.wikipedia.org`, `commons.wikimedia.org` and `upload.wikimedia.org`. If a download fails, the person keeps their current photo and the script says to run it again.
+`seed:real` is safe to run again: people are upserted by slug, and `claimedBy` / `verified` are only set when a profile is first created, so an approved claim is never undone. Photos come from each person's English Wikipedia lead image. Only Wikimedia Commons files with a free license (CC0, CC BY, CC BY-SA, public domain, GFDL) (plus GODL-India) are used. Each one is resized to 600px wide WebP with `sharp`, and they are saved in the `personphotos` collection with the author and license in `photoCredit`. Anyone without a usable image gets the initials avatar. The script needs internet access to `en.wikipedia.org`, `commons.wikimedia.org` and `upload.wikimedia.org`. Each request is retried up to 4 times with a growing pause. If a download still fails, the person keeps their current photo and the script says to run it again.
 
 ## Request flow
 

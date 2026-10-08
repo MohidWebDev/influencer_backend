@@ -1,10 +1,38 @@
+import sharp from 'sharp'
 import { env } from '../config/env'
 import type { IPhotoCredit } from '../models/Person'
 
 // Wikimedia ka qaida: har request pe saaf User-Agent
 const USER_AGENT = `${env.platformName.replace(/\s+/g, '')}Seed/1.0 (${env.clientUrl})`
 const PHOTO_WIDTH = 600
-const MAX_BYTES = 3 * 1024 * 1024
+// Asal file itni bari ho sakti hai; hum khud 600px WebP banate hain
+const MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024
+const RETRIES = 4
+const TIMEOUT_MS = 20_000
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+// Network ka waqti masla ya Wikimedia ki "ahista chalo" (429 / 5xx): ruk kar dobara.
+// 404 jaisa pakka jawab foran wapas
+async function fetchWithRetry(url: string, accept: string) {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= RETRIES; attempt += 1) {
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': USER_AGENT, Accept: accept },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      })
+      if (res.status !== 429 && res.status < 500) return res
+      lastError = new Error(`${res.status} from ${new URL(url).host}`)
+      const retryAfter = Number(res.headers.get('retry-after'))
+      if (retryAfter > 0) await sleep(Math.min(retryAfter, 30) * 1000)
+    } catch (error) {
+      lastError = error
+    }
+    if (attempt < RETRIES) await sleep(1000 * 2 ** (attempt - 1))
+  }
+  throw lastError instanceof Error ? lastError : new Error('fetch failed')
+}
 
 export type WikiPhotoResult =
   | {
@@ -30,14 +58,13 @@ interface Summary {
 
 interface CommonsImageInfo {
   thumburl?: string
-  thumbwidth?: number
   url: string
   descriptionurl: string
   extmetadata?: Record<string, { value?: string } | undefined>
 }
 
 async function getJson<T>(url: string): Promise<{ status: number; body?: T }> {
-  const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' } })
+  const res = await fetchWithRetry(url, 'application/json')
   if (res.status === 404) return { status: 404 }
   if (!res.ok) throw new Error(`${res.status} from ${new URL(url).host}`)
   return { status: res.status, body: (await res.json()) as T }
@@ -64,11 +91,22 @@ export function isFreeLicense(shortName: string, nonFree?: string) {
   if (nonFree === 'true' || nonFree === '1') return false
   const name = shortName.trim().toLowerCase()
   if (/\b(nc|nd)\b/.test(name)) return false
-  return /^(cc0|cc[ -]by(-sa)?\b|public domain|pd\b|pd-|gfdl|attribution)/.test(name)
+  // GODL-India: Bharat sarkar ka open license, Commons pe free maana jata hai
+  return /^(cc0|cc[ -]by(-sa)?\b|public domain|pd\b|pd-|gfdl|godl|attribution)/.test(name)
 }
 
-// Wikipedia ki lead image -> Commons se license/author -> 600px wali copy download
-export async function fetchWikiPhoto(title: string): Promise<WikiPhotoResult> {
+// Kai titles ho sakte hain (jaise "Ducky_Bhai" na mile to asal naam): pehla mojood article
+export async function fetchWikiPhoto(titles: string[]): Promise<WikiPhotoResult> {
+  let result: WikiPhotoResult | undefined
+  for (const title of titles) {
+    result = await fetchWikiPhotoForTitle(title)
+    if (result.status !== 'no-article') return result
+  }
+  return result!
+}
+
+// Wikipedia ki lead image -> Commons se license/author -> download -> 600px WebP
+async function fetchWikiPhotoForTitle(title: string): Promise<WikiPhotoResult> {
   const fallbackPage = `https://en.wikipedia.org/wiki/${encodeURIComponent(title)}`
   const summary = await getJson<Summary>(
     `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
@@ -109,21 +147,25 @@ export async function fetchWikiPhoto(title: string): Promise<WikiPhotoResult> {
   }
 
   const imageUrl = info.thumburl ?? info.url
-  const res = await fetch(imageUrl, { headers: { 'User-Agent': USER_AGENT } })
+  const res = await fetchWithRetry(imageUrl, 'image/*')
   if (!res.ok) throw new Error(`${res.status} downloading image`)
-  const contentType = res.headers.get('content-type')?.split(';')[0] ?? 'image/jpeg'
-  if (!contentType.startsWith('image/')) throw new Error(`Unexpected content type ${contentType}`)
-  const data = Buffer.from(await res.arrayBuffer())
-  if (data.length > MAX_BYTES) {
-    return { status: 'not-free', pageUrl, reason: 'Image file too large' }
-  }
+  const original = Buffer.from(await res.arrayBuffer())
+  if (original.length > MAX_DOWNLOAD_BYTES) throw new Error('Image file too large')
+
+  // Hamesha 600px chaurai (chhoti ho to bari nahi karte), WebP: chhoti file, achi quality
+  const { data, info: out } = await sharp(original)
+    .rotate()
+    .resize({ width: PHOTO_WIDTH, withoutEnlargement: true })
+    .webp({ quality: 82 })
+    .toBuffer({ resolveWithObject: true })
+  const contentType = 'image/webp'
 
   return {
     status: 'ok',
     pageUrl,
     data,
     contentType,
-    width: info.thumbwidth,
+    width: out.width,
     credit: {
       provider: 'Wikimedia Commons',
       author: plainText(meta.Artist?.value),
