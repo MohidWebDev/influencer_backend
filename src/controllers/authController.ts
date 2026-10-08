@@ -175,7 +175,14 @@ export async function deleteAccount(req: Request, res: Response) {
   })
 
   // Talent ki profile wapas "unclaimed" (profile site pe rehti hai, bas maalik nahi)
-  await Person.updateMany({ claimedBy: user._id }, { $set: { claimedBy: null, verified: false } })
+  // Maalik gaya to us ki services / availability bhi (profile wapas aam public profile)
+  await Person.updateMany(
+    { claimedBy: user._id },
+    {
+      $set: { claimedBy: null, verified: false, services: [], status: 'public' },
+      $unset: { availability: 1 },
+    },
+  )
   // Talent ki bheji hui chhupi (draft) profiles aur us ke claims / notifications mita do
   const drafts = await ProfileClaim.find({ user: user._id, isNewProfile: true }).select('person')
   await Person.deleteMany({

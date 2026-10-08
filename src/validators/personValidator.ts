@@ -5,6 +5,7 @@ import {
   SOCIAL_PLATFORMS,
   SOURCE_TYPES,
 } from '../constants/people'
+import { OPEN_TO } from '../constants/services'
 
 // Khali string bhejo to field saaf ho jaye
 const optionalUrl = z.union([z.url('Enter a valid URL'), z.literal('')]).optional()
@@ -95,6 +96,8 @@ export const listPeopleQuerySchema = z.object({
   language: z.enum(LANGUAGE_CODES).optional(),
   minFollowers: z.coerce.number().int().min(0).optional(),
   status: z.enum(PROFILE_STATUSES).optional(),
+  // Sirf woh log jo is kaam ke liye abhi khule hain (speaking, campaigns...)
+  openTo: z.enum(OPEN_TO).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
   sort: z.enum(['followers', 'newest', 'name']).default('followers'),

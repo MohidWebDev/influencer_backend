@@ -8,6 +8,14 @@ import {
   type SocialPlatform,
   type SourceType,
 } from '../constants/people'
+import {
+  CURRENCIES,
+  OPEN_TO,
+  PRICE_UNITS,
+  PRICING_TYPES,
+  RESPONSE_TIMES,
+  SERVICE_CATEGORIES,
+} from '../constants/services'
 
 // Person = public profile. Login account (User) alag hai.
 // Person pehle se mojood ho sakta hai, user baad mein "claim" karta hai
@@ -24,6 +32,36 @@ export interface ISourceRecord {
   url?: string
   note?: string
   retrievedAt: Date
+}
+
+// Talent ki pesh ki hui service (jaise keynote talk, brand campaign)
+export interface IService {
+  _id: Types.ObjectId
+  title: string
+  category: (typeof SERVICE_CATEGORIES)[number]
+  description?: string
+  pricing: {
+    type: (typeof PRICING_TYPES)[number]
+    currency: (typeof CURRENCIES)[number]
+    amount?: number
+    min?: number
+    max?: number
+    unit: (typeof PRICE_UNITS)[number]
+  }
+  deliveryDays?: number
+  isActive: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+// Abhi naya kaam le raha hai ya nahi, aur kis qism ka
+export interface IAvailability {
+  isOpen: boolean
+  openTo: (typeof OPEN_TO)[number][]
+  responseTime?: (typeof RESPONSE_TIMES)[number]
+  availableFrom?: Date
+  note?: string
+  updatedAt?: Date
 }
 
 // Photo kahan se aayi aur kis license pe (jaise Wikimedia Commons, CC BY-SA 4.0)
@@ -44,6 +82,8 @@ export interface IPerson {
   photoCredit?: IPhotoCredit
   // Profile kis qism ke account ke liye hai (abhi sab "talent")
   roles: string[]
+  services: IService[]
+  availability?: IAvailability
   status: ProfileStatus
   professions: Types.ObjectId[]
   industries: Types.ObjectId[]
@@ -100,6 +140,37 @@ const photoCreditSchema = new Schema<IPhotoCredit>(
   { _id: false },
 )
 
+const serviceSchema = new Schema<IService>(
+  {
+    title: { type: String, required: true, trim: true, maxlength: 80 },
+    category: { type: String, enum: SERVICE_CATEGORIES, required: true },
+    description: { type: String, trim: true, maxlength: 500 },
+    pricing: {
+      type: { type: String, enum: PRICING_TYPES, required: true },
+      currency: { type: String, enum: CURRENCIES, default: 'PKR' },
+      amount: { type: Number, min: 0 },
+      min: { type: Number, min: 0 },
+      max: { type: Number, min: 0 },
+      unit: { type: String, enum: PRICE_UNITS, default: 'project' },
+    },
+    deliveryDays: { type: Number, min: 1, max: 365 },
+    isActive: { type: Boolean, default: true },
+  },
+  { timestamps: true },
+)
+
+const availabilitySchema = new Schema<IAvailability>(
+  {
+    isOpen: { type: Boolean, default: false },
+    openTo: [{ type: String, enum: OPEN_TO }],
+    responseTime: { type: String, enum: RESPONSE_TIMES },
+    availableFrom: { type: Date },
+    note: { type: String, trim: true, maxlength: 280 },
+    updatedAt: { type: Date },
+  },
+  { _id: false },
+)
+
 const personSchema = new Schema<IPerson>(
   {
     name: { type: String, required: true, trim: true, maxlength: 120 },
@@ -109,6 +180,8 @@ const personSchema = new Schema<IPerson>(
     photoUrl: { type: String, trim: true },
     photoCredit: { type: photoCreditSchema, default: undefined },
     roles: { type: [String], default: ['talent'] },
+    services: { type: [serviceSchema], default: [] },
+    availability: { type: availabilitySchema, default: undefined },
     status: { type: String, enum: PROFILE_STATUSES, default: 'public' },
     professions: [{ type: Schema.Types.ObjectId, ref: 'Profession' }],
     industries: [{ type: Schema.Types.ObjectId, ref: 'Industry' }],
@@ -144,6 +217,7 @@ personSchema.index({ professions: 1 })
 personSchema.index({ industries: 1 })
 personSchema.index({ topics: 1 })
 personSchema.index({ country: 1, city: 1 })
+personSchema.index({ 'availability.isOpen': 1, 'availability.openTo': 1 })
 
 // Save se pehle followers ka jor dobara nikalo
 personSchema.pre('save', function () {

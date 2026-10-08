@@ -28,7 +28,7 @@ const TAXONOMY_POPULATE = [
 
 // Search results ke card ke liye sirf zaroori fields
 const LIST_FIELDS =
-  'name slug headline photoUrl status professions country city totalFollowers verified isDemo claimedBy'
+  'name slug headline photoUrl status professions country city totalFollowers verified isDemo claimedBy availability.isOpen availability.openTo'
 
 // Claimed profile pe admin sirf ye fields badal sakta hai
 const MODERATION_FIELDS = ['visibility']
@@ -71,6 +71,10 @@ export async function listPeople(req: Request, res: Response) {
   if (query.language) filter.languages = query.language
   if (query.minFollowers !== undefined) filter.totalFollowers = { $gte: query.minFollowers }
   if (query.status) filter.status = query.status
+  if (query.openTo) {
+    filter['availability.isOpen'] = true
+    filter['availability.openTo'] = query.openTo
+  }
 
   const skip = (query.page - 1) * query.limit
   const [people, total] = await Promise.all([
@@ -94,7 +98,10 @@ export async function getPersonBySlug(req: Request, res: Response) {
   }).populate(TAXONOMY_POPULATE)
 
   if (!person) throw new AppError(404, 'NOT_FOUND', 'Profile not found')
-  sendSuccess(res, { person })
+  // Public ko sirf chalti (active) services
+  const json = person.toJSON() as unknown as Record<string, unknown>
+  json.services = person.services.filter((service) => service.isActive)
+  sendSuccess(res, { person: json })
 }
 
 // GET /api/people/photos/:id -> profile photo ki file. Id har nayi photo pe badalti hai,

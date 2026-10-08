@@ -92,6 +92,13 @@ router.post('/inquiries', requireAuth, requireRole('business', 'agency'), create
 Public `GET /api/people` and `/api/people/:slug` are cached on the Vercel CDN for 10 s (stale-while-revalidate 20 s). A request with `?_fresh=<anything>` skips the CDN (`Cache-Control: no-store`); the frontend adds it for logged-in users so admins see changes instantly.
 
 | GET | `/api/people/photos/:id` | anyone | profile photo stored in MongoDB (`photoUrl` points here). Cached for a year: a new photo gets a new id |
+| GET | `/api/me/services` | talent with a claimed profile | `{ person, services, availability }` (all services, hidden ones too). No claimed profile: 404 `NO_PROFILE` |
+| POST | `/api/me/services` | talent | body `title, category, description?, pricing, deliveryDays?, isActive?`. `pricing` is `{ type: 'fixed', currency, unit, amount }`, `{ type: 'range', currency, unit, min, max }` (max > min) or `{ type: 'quote' }`. Up to 12 services (409 `TOO_MANY_SERVICES`) |
+| PATCH | `/api/me/services/:id` | talent | any of the fields above, e.g. `{ isActive: false }` to hide it from the public profile. `deliveryDays: null` clears it |
+| DELETE | `/api/me/services/:id` | talent | remove a service |
+| PUT | `/api/me/availability` | talent | body `isOpen, openTo[] (speaking, campaigns, podcasts, events), responseTime? (24h, 3d, 1w), availableFrom?, note?` |
+
+Services and availability live on the talent's `Person`. The public profile only returns active services. A claimed profile becomes `hireable` automatically when it is open for work and has at least one active service, and goes back to `contactable` when it is not (`represented` is never changed). `GET /api/people?openTo=speaking` lists people who are open for that kind of work. Deleting the owner's account clears the services and availability.
 | POST | `/api/people` | admin | create a profile (taxonomy as slugs). A new profile cannot be `verified` (409 `PROFILE_NOT_CLAIMED`) |
 | PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, visibility`. On a claimed profile the admin can only change `visibility` (403 `PROFILE_CLAIMED` otherwise). `verified` cannot be changed by hand (409 `AUTO_VERIFIED`): a profile becomes verified automatically when its claim is approved |
 | DELETE | `/api/people/:id` | admin | delete a profile permanently (prefer `visibility: hidden` for takedowns) |
