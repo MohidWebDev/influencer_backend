@@ -41,7 +41,8 @@ const snapshot = (user: { role: string; status: string }) => ({ role: user.role,
 // GET /api/admin/users -> search, role aur status filter
 export async function adminListUsers(req: Request, res: Response) {
   const query = parseOrThrow(listUsersQuerySchema, req.query)
-  const filter: QueryFilter<IUser> = {}
+  // Login wala admin khud list mein nahi (apna account yahan se badal bhi nahi sakta)
+  const filter: QueryFilter<IUser> = { _id: { $ne: req.user!.id } }
   if (query.q) {
     const pattern = new RegExp(escapeRegex(query.q), 'i')
     filter.$or = [{ name: pattern }, { email: pattern }]

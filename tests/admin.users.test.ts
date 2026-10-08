@@ -10,6 +10,16 @@ beforeAll(async () => {
 afterAll(teardownDb)
 
 describe('admin users', () => {
+  it('does not list the logged-in admin, but lists other admins', async () => {
+    const { agent, user: me } = await loginAs(app, 'admin')
+    const { user: other } = await loginAs(app, 'admin')
+    const res = await agent.get('/api/admin/users?role=admin&limit=50')
+    const ids = res.body.data.users.map((u: { _id: string }) => u._id)
+    expect(ids).not.toContain(me._id.toString())
+    expect(ids).toContain(other._id.toString())
+    expect(res.body.meta.total).toBe(ids.length)
+  })
+
   it('lists users with search and role filter', async () => {
     const { agent } = await loginAs(app, 'admin')
     const { user: business } = await loginAs(app, 'business')
