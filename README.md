@@ -64,6 +64,8 @@ Request -> app.ts -> routes -> middlewares -> controller -> model -> sendSuccess
 | POST | `/api/auth/refresh` | refresh cookie | new access + refresh tokens |
 | POST | `/api/auth/logout` | anyone | clears cookies, invalidates refresh tokens |
 | GET | `/api/auth/me` | logged in | current user |
+| PATCH | `/api/auth/password` | logged in | body `currentPassword, newPassword` (min 8, must differ). Wrong current password: 400 `WRONG_PASSWORD`. Logs out other devices; this device gets new cookies |
+| DELETE | `/api/auth/account` | logged in | body `confirm` = `delete <your name>` (case and extra spaces ignored), else 400 `CONFIRMATION_MISMATCH`. The last active admin cannot delete themselves (409 `LAST_ADMIN`). Owned profile goes back to unclaimed (and loses the verified badge); the user's claims, draft profiles and notifications are removed; audit action `user.self_delete` |
 
 Tokens live in httpOnly cookies: `accessToken` (15 min) and `refreshToken` (7 days, sent only to `/api/auth`).
 

@@ -13,7 +13,17 @@ import {
   signRefreshToken,
   verifyRefreshToken,
 } from '../utils/tokens'
-import type { LoginInput, RegisterInput } from '../validators/authValidator'
+import { Notification } from '../models/Notification'
+import { Person } from '../models/Person'
+import { ProfileClaim } from '../models/ProfileClaim'
+import { writeAuditLog } from '../services/auditService'
+import { parseOrThrow } from '../utils/validation'
+import {
+  changePasswordSchema,
+  deleteAccountSchema,
+  type LoginInput,
+  type RegisterInput,
+} from '../validators/authValidator'
 
 // Naye access + refresh tokens bana kar cookies mein rakhta hai
 function issueTokens(res: Response, user: UserDocument) {
@@ -107,4 +117,76 @@ export async function me(req: Request, res: Response) {
     throw new AppError(401, 'UNAUTHORIZED', 'Please log in')
   }
   sendSuccess(res, { user })
+}
+
+// PATCH /api/auth/password -> purana password check, naya set.
+// Baqi saari devices se logout (tokenVersion +1), is device pe naye tokens
+export async function changePassword(req: Request, res: Response) {
+  const { currentPassword, newPassword } = parseOrThrow(changePasswordSchema, req.body ?? {})
+  const user = await User.findById(req.user!.id).select('+password +tokenVersion')
+  if (!user) throw new AppError(401, 'UNAUTHORIZED', 'Please log in')
+
+  if (!(await user.comparePassword(currentPassword))) {
+    throw new AppError(400, 'WRONG_PASSWORD', 'Your current password is not correct', {
+      currentPassword: 'Your current password is not correct',
+    })
+  }
+
+  user.password = newPassword
+  user.tokenVersion += 1
+  await user.save()
+  issueTokens(res, user)
+  sendSuccess(res, { changed: true })
+}
+
+// DELETE /api/auth/account -> apna account hamesha ke liye mitao.
+// Confirm mein "delete <naam>" likhna zaroori (bade/chhote huroof se farq nahi)
+export async function deleteAccount(req: Request, res: Response) {
+  const { confirm } = parseOrThrow(deleteAccountSchema, req.body ?? {})
+  const user = await User.findById(req.user!.id)
+  if (!user) throw new AppError(401, 'UNAUTHORIZED', 'Please log in')
+
+  const expected = `delete ${user.name}`.trim().toLowerCase().replace(/\s+/g, ' ')
+  if (confirm.toLowerCase().replace(/\s+/g, ' ') !== expected) {
+    throw new AppError(400, 'CONFIRMATION_MISMATCH', 'The confirmation text does not match', {
+      confirm: `Type "delete ${user.name}" to confirm`,
+    })
+  }
+
+  // Aakhri active admin apna account nahi mita sakta
+  if (user.role === 'admin') {
+    const others = await User.countDocuments({
+      role: 'admin',
+      status: 'active',
+      _id: { $ne: user._id },
+    })
+    if (others === 0) {
+      throw new AppError(409, 'LAST_ADMIN', 'At least one active admin must remain')
+    }
+  }
+
+  // Record ke liye (actor ka email audit log mein mehfooz rehta hai)
+  await writeAuditLog(req, {
+    action: 'user.self_delete',
+    targetType: 'user',
+    targetId: user._id,
+    targetLabel: user.email,
+    before: { role: user.role, status: user.status },
+  })
+
+  // Talent ki profile wapas "unclaimed" (profile site pe rehti hai, bas maalik nahi)
+  await Person.updateMany({ claimedBy: user._id }, { $set: { claimedBy: null, verified: false } })
+  // Talent ki bheji hui chhupi (draft) profiles aur us ke claims / notifications mita do
+  const drafts = await ProfileClaim.find({ user: user._id, isNewProfile: true }).select('person')
+  await Person.deleteMany({
+    _id: { $in: drafts.map((d) => d.person) },
+    isDraft: true,
+    claimedBy: null,
+  })
+  await ProfileClaim.deleteMany({ user: user._id })
+  await Notification.deleteMany({ recipient: user._id })
+  await User.deleteOne({ _id: user._id })
+
+  clearAuthCookies(res)
+  sendSuccess(res, { deleted: true })
 }
