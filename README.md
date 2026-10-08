@@ -90,7 +90,7 @@ router.post('/inquiries', requireAuth, requireRole('business', 'agency'), create
 | GET | `/api/people/:slug` | anyone | public profile |
 | GET | `/api/people/photos/:id` | anyone | profile photo stored in MongoDB (`photoUrl` points here). Cached for a year: a new photo gets a new id |
 | POST | `/api/people` | admin | create a profile (taxonomy as slugs). A new profile cannot be `verified` (409 `PROFILE_NOT_CLAIMED`) |
-| PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, verified, visibility`. On a claimed profile the admin can only change `verified` and `visibility` (403 `PROFILE_CLAIMED` otherwise). `verified: true` only works on a claimed profile (409 `PROFILE_NOT_CLAIMED`); removing the badge always works |
+| PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, visibility`. On a claimed profile the admin can only change `visibility` (403 `PROFILE_CLAIMED` otherwise). `verified` cannot be changed by hand (409 `AUTO_VERIFIED`): a profile becomes verified automatically when its claim is approved |
 | DELETE | `/api/people/:id` | admin | delete a profile permanently (prefer `visibility: hidden` for takedowns) |
 | GET | `/api/taxonomy/professions` (`industries`, `topics`) | anyone | dropdown lists |
 
@@ -120,12 +120,12 @@ any open status -> (admin rejects) rejected
 
 Claim fields for verification: `otpAttempts` (default 0), `otpLockedAt`, `lastOtpAttemptAt`, `verifiedAt`, `verifiedBy` (admin user id, `null` when the talent verified by OTP), `verificationMethod` (`otp` or `admin_manual`).
 
-Old claims are migrated when the server connects to MongoDB (`migrateLegacyClaims()`, safe to run many times). On the same connect, unclaimed profiles lose the `verified` badge (`unverifyUnclaimedPeople()`), because only a claimed profile can be verified: `code_sent` becomes `waiting_for_talent`, `code_verified` becomes `verified`, and `verification.attempts` moves to `otpAttempts`.
+Old claims are migrated when the server connects to MongoDB (`migrateLegacyClaims()`, safe to run many times). On the same connect, `syncVerifiedWithClaims()` makes `verified` match ownership (claimed profiles are verified, unclaimed ones are not). Claim migration: `code_sent` becomes `waiting_for_talent`, `code_verified` becomes `verified`, and `verification.attempts` moves to `otpAttempts`.
 
 | Method | URL | Who | What |
 |---|---|---|---|
-| POST | `/api/claims` | talent | body: `personId, links[] (min 1), contactEmail?, note?`. One open claim per user, one owned profile per user |
-| POST | `/api/claims/new-profile` | talent | when the talent cannot find their profile. body: `name, socialAccounts[] (min 1), headline?, bio?, country?, city?, languages?, professions?, industries?, topics?, photoUrl?, websiteUrl?, contactEmail?, note?, force?`. Creates a hidden draft profile (`isDraft`) plus a claim with `isNewProfile: true`; the social links become the claim links. If a visible profile has the same name or social link: 409 `POSSIBLE_DUPLICATE` with `error.details.matches` (send `force: true` to create anyway) |
+| POST | `/api/claims` | talent | body: `personId, links[] (min 1), note?`. The claim's `evidence.contactEmail` is always the claimant's login email (any `contactEmail` in the body is ignored). One open claim per user, one owned profile per user |
+| POST | `/api/claims/new-profile` | talent | when the talent cannot find their profile. body: `name, socialAccounts[] (min 1), headline?, bio?, country?, city?, languages?, professions?, industries?, topics?, photoUrl?, websiteUrl?, note?, force?`. `evidence.contactEmail` is the claimant's login email. Creates a hidden draft profile (`isDraft`) plus a claim with `isNewProfile: true`; the social links become the claim links. If a visible profile has the same name or social link: 409 `POSSIBLE_DUPLICATE` with `error.details.matches` (send `force: true` to create anyway) |
 | GET | `/api/claims/mine` | logged in | my claims, newest first |
 | GET | `/api/claims/my-profile` | logged in | the Person I own, or `null` |
 | POST | `/api/claims/:id/verify` | claim owner | body: `code`. Wrong code: 400 `INVALID_CODE` with `error.details.attemptsLeft`. 5th wrong code or any try after: 423 `OTP_LOCKED`. Code expires after 48h (410 `CODE_EXPIRED`) |

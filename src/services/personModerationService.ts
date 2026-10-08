@@ -24,8 +24,9 @@ export async function personExists(personId: unknown) {
   return Person.exists({ _id: personId, visibility: 'visible' })
 }
 
-// Rule: verified sirf claimed profile ho sakti hai. Purane data mein jo unclaimed profile
-// verified hai uska badge hatao (har bar chalana safe hai)
-export async function unverifyUnclaimedPeople() {
+// Rule: verified = claimed. Claim approve hote hi profile verified, maalik na ho to nahi.
+// Purana data isi rule pe le aao (har bar chalana safe hai)
+export async function syncVerifiedWithClaims() {
   await Person.updateMany({ claimedBy: null, verified: true }, { $set: { verified: false } })
+  await Person.updateMany({ claimedBy: { $ne: null }, verified: false }, { $set: { verified: true } })
 }

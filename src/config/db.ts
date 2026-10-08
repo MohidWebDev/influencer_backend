@@ -1,7 +1,7 @@
 import mongoose from 'mongoose'
 import { env } from './env'
 import { migrateLegacyClaims } from '../models/ProfileClaim'
-import { unverifyUnclaimedPeople } from '../services/personModerationService'
+import { syncVerifiedWithClaims } from '../services/personModerationService'
 
 // Vercel pe har request naya function chala sakti hai, is liye connection
 // ko cache karte hain taake har dafa naya connection na bane
@@ -22,7 +22,7 @@ export async function connectDB() {
     // Har naye connection pe purane claims naye status mein (pehli request se pehle)
     .then(async (connection) => {
       await migrateLegacyClaims()
-      await unverifyUnclaimedPeople()
+      await syncVerifiedWithClaims()
       return connection
     })
     .catch((error) => {

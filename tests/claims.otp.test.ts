@@ -15,8 +15,12 @@ async function claimWithCode() {
   const person = await createPerson()
   const talent = await loginAs(app, 'talent')
   const admin = await loginAs(app, 'admin')
-  const created = await talent.agent.post('/api/claims').send({ personId: person._id, links: [LINK] })
+  // Form se koi aur email bheje to bhi claim pe login wali email hi lagti hai
+  const created = await talent.agent
+    .post('/api/claims')
+    .send({ personId: person._id, links: [LINK], contactEmail: 'someone-else@example.com' })
   expect(created.status).toBe(201)
+  expect(created.body.data.claim.evidence.contactEmail).toBe(talent.user.email)
   const id = created.body.data.claim._id as string
   const sent = await admin.agent.post(`/api/admin/claims/${id}/code`).send({ channelUrl: LINK })
   expect(sent.status).toBe(200)
@@ -93,6 +97,8 @@ describe('claim OTP', () => {
 
     const { Person } = await import('../src/models/Person')
     expect((await Person.findById(person._id))?.claimedBy?.toString()).toBe(talent.user._id.toString())
+    // Claim approve = profile khud verified
+    expect((await Person.findById(person._id))?.verified).toBe(true)
 
     // Approved claim "all" list mein dikhta rehta hai
     const all = await admin.agent.get('/api/admin/claims?status=all&limit=50')

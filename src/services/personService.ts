@@ -39,12 +39,12 @@ export async function resolveTaxonomySlugs(
   return items.map((item) => item._id)
 }
 
-// Claim approve hone pe Person ka maalik set karta hai.
+// Claim approve hone pe Person ka maalik set karta hai, aur profile khud verified ho jati hai.
 // Sirf tab jab profile pehle se kisi aur ki na ho (dono admin ek saath approve karein to bhi safe)
 export async function setPersonOwner(personId: Types.ObjectId | string, userId: Types.ObjectId | string) {
   const person = await Person.findOneAndUpdate(
     { _id: personId, claimedBy: null },
-    { $set: { claimedBy: userId } },
+    { $set: { claimedBy: userId, verified: true } },
     { returnDocument: 'after' },
   )
   if (!person) {

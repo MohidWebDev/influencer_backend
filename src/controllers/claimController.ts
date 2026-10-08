@@ -74,7 +74,7 @@ export async function createClaim(req: Request, res: Response) {
     person: person._id,
     user: userId,
     evidence: {
-      contactEmail: input.contactEmail || undefined,
+      contactEmail: await accountEmailOf(userId),
       links: input.links,
       note: input.note || undefined,
     },
@@ -155,7 +155,8 @@ export async function createNewProfileClaim(req: Request, res: Response) {
     generateUniquePersonSlug(input.name),
   ])
 
-  const { contactEmail, note, force: _force, ...profile } = input
+  // contactEmail form se nahi: account wali email lagti hai
+  const { contactEmail: _contactEmail, note, force: _force, ...profile } = input
   const person = await Person.create({
     ...profile,
     slug,
@@ -174,7 +175,7 @@ export async function createNewProfileClaim(req: Request, res: Response) {
       isNewProfile: true,
       requestedName: person.name,
       evidence: {
-        contactEmail: contactEmail || undefined,
+        contactEmail: await accountEmailOf(userId),
         links: [...new Set(input.socialAccounts.map((a) => a.url))].slice(0, 5),
         note: note || undefined,
       },
@@ -307,6 +308,12 @@ export async function verifyClaimCode(req: Request, res: Response) {
 }
 
 // Notification ke jumle ke liye naam
+// Claim ke saath hamesha wohi email jis se talent login hai (form se nahi badal sakti)
+async function accountEmailOf(userId: unknown) {
+  const user = await User.findById(userId).select('email')
+  return user?.email
+}
+
 async function nameOf(userId: unknown) {
   const user = await User.findById(userId).select('name')
   return user?.name

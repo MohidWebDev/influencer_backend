@@ -31,7 +31,7 @@ const LIST_FIELDS =
   'name slug headline photoUrl status professions country city totalFollowers verified isDemo claimedBy'
 
 // Claimed profile pe admin sirf ye fields badal sakta hai
-const MODERATION_FIELDS = ['verified', 'visibility']
+const MODERATION_FIELDS = ['visibility']
 
 const SORTS = {
   followers: { totalFollowers: -1, _id: 1 },
@@ -161,6 +161,15 @@ export async function updatePerson(req: Request, res: Response) {
     throw new AppError(403, 'FORBIDDEN', 'You can only edit your own profile')
   }
 
+  // Verified haath se nahi badalta: claim approve hone pe khud lagta hai
+  if ('verified' in (req.body ?? {}) && Boolean(req.body.verified) !== person.verified) {
+    throw new AppError(
+      409,
+      'AUTO_VERIFIED',
+      'Verification is automatic: a profile becomes verified when its claim is approved',
+    )
+  }
+
   // Claimed profile ka maalik talent hai. Admin sirf moderation kar sakta hai
   // (verify / hide), details edit nahi
   const body = req.body ?? {}
@@ -187,11 +196,6 @@ export async function updatePerson(req: Request, res: Response) {
       'PROFILE_PENDING_REVIEW',
       'This profile is waiting for its claim to be approved',
     )
-  }
-
-  // Verify sirf tab jab koi talent profile claim kar chuka ho. Unverify hamesha ho sakta hai
-  if (input.verified === true && !person.verified && !person.claimedBy) {
-    throw notClaimedError()
   }
 
   const { professions, industries, topics, ...rest } = input

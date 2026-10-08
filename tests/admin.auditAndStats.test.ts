@@ -32,19 +32,17 @@ describe('audit log', () => {
     expect(after.body.meta.total).toBe(1)
   })
 
-  it('names quick verify and hide toggles separately', async () => {
+  it('names quick hide and show toggles separately', async () => {
     const { agent: admin } = await loginAs(app, 'admin')
     const { user: owner } = await loginAs(app, 'talent')
-    // Verify sirf claimed profile pe ho sakta hai
-    const person = await createPerson({ claimedBy: owner._id })
+    const person = await createPerson({ claimedBy: owner._id, verified: true })
 
-    await admin.patch(`/api/people/${person._id}`).send({ verified: true })
     await admin.patch(`/api/people/${person._id}`).send({ visibility: 'hidden' })
     await admin.patch(`/api/people/${person._id}`).send({ visibility: 'visible' })
 
     const logs = await admin.get(`/api/admin/audit-logs?targetId=${person._id}`)
     const actions = logs.body.data.logs.map((l: { action: string }) => l.action).sort()
-    expect(actions).toEqual(['person.hide', 'person.unhide', 'person.verify'])
+    expect(actions).toEqual(['person.hide', 'person.unhide'])
   })
 
   it('never stores claim codes', async () => {
