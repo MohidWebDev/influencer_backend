@@ -26,7 +26,7 @@ import {
 } from '../validators/authValidator'
 
 // Naye access + refresh tokens bana kar cookies mein rakhta hai
-function issueTokens(res: Response, user: UserDocument) {
+export function issueTokens(res: Response, user: UserDocument) {
   const accessToken = signAccessToken({ sub: user.id, role: user.role })
   const refreshToken = signRefreshToken({
     sub: user.id,

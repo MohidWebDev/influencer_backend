@@ -36,3 +36,19 @@ export const deleteAccountSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>
 export type LoginInput = z.infer<typeof loginSchema>
+
+// Password bhool gaya: 1) email  2) email + OTP  3) email + reset token + naya password
+export const forgotPasswordSchema = z.object({
+  email: z.email('Enter a valid email').trim().toLowerCase(),
+})
+
+export const verifyResetCodeSchema = z.object({
+  email: z.email('Enter a valid email').trim().toLowerCase(),
+  code: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code'),
+})
+
+export const resetPasswordSchema = z.object({
+  email: z.email('Enter a valid email').trim().toLowerCase(),
+  resetToken: z.string().min(1),
+  newPassword: z.string().min(8, 'Password must be at least 8 characters').max(100),
+})

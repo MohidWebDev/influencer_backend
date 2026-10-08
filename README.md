@@ -66,6 +66,9 @@ Request -> app.ts -> routes -> middlewares -> controller -> model -> sendSuccess
 | GET | `/api/auth/me` | logged in | current user |
 | PATCH | `/api/auth/password` | logged in | body `currentPassword, newPassword` (min 8, must differ). Wrong current password: 400 `WRONG_PASSWORD`. Logs out other devices; this device gets new cookies |
 | DELETE | `/api/auth/account` | logged in | body `confirm` = `delete <your name>` (case and extra spaces ignored), else 400 `CONFIRMATION_MISMATCH`. The last active admin cannot delete themselves (409 `LAST_ADMIN`). Owned profile goes back to unclaimed (and loses the verified badge); the user's claims, draft profiles and notifications are removed; audit action `user.self_delete` |
+| POST | `/api/auth/forgot-password` | public | body `email`. Emails a 6-digit code (valid 10 min). Always answers `{ sent: true, resendIn: 60 }`, so it never reveals whether an email is registered. A new code is sent at most once every 60 s; suspended accounts get nothing |
+| POST | `/api/auth/forgot-password/verify` | public | body `email, code`. Wrong code: 400 `INVALID_CODE` with `details.attemptsLeft`; after 5 wrong tries 429 `TOO_MANY_ATTEMPTS`; old code 400 `CODE_EXPIRED`. Success returns a one-time `resetToken` (valid 15 min); the code stops working |
+| POST | `/api/auth/reset-password` | public | body `email, resetToken, newPassword` (min 8). Bad or expired token: 400 `RESET_EXPIRED`. Sets the password, logs out every other device, logs in on this one and emails a "password changed" notice |
 
 Tokens live in httpOnly cookies: `accessToken` (15 min) and `refreshToken` (7 days, sent only to `/api/auth`).
 
@@ -167,6 +170,8 @@ Public GETs send `Cache-Control: public, max-age=0, must-revalidate` (the browse
 ## Environment variables on Vercel
 
 `NODE_ENV`, `CLIENT_URL`, `MONGO_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (see `.env.example`).
+
+For password reset emails also set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM`. With Gmail use `smtp.gmail.com`, port `587` and a Google **App Password** (not the normal Gmail password). Without `SMTP_HOST` the code is printed in the server terminal in development, and production answers 503 `EMAIL_NOT_CONFIGURED`.
 
 ## Admin panel API (admin only)
 
