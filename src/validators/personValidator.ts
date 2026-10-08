@@ -91,13 +91,23 @@ export const listPeopleQuerySchema = z.object({
   profession: commaList.optional(),
   industry: commaList.optional(),
   topic: commaList.optional(),
-  country: z.string().trim().toUpperCase().length(2).optional(),
+  // Ek ya kai mulk: "PK" ya "PK,AE"
+  country: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .transform((value) => value.split(',').map((s) => s.trim()).filter(Boolean))
+    .pipe(z.array(z.string().regex(/^[A-Z]{2}$/, 'Use 2-letter country codes')).max(20))
+    .optional(),
   city: z.string().trim().max(80).optional(),
   language: z.enum(LANGUAGE_CODES).optional(),
   minFollowers: z.coerce.number().int().min(0).optional(),
   status: z.enum(PROFILE_STATUSES).optional(),
   // Sirf woh log jo is kaam ke liye abhi khule hain (speaking, campaigns...)
   openTo: z.enum(OPEN_TO).optional(),
+  // Browse pe kai cheezen chun kar: all = har chuni cheez match ho, any = koi bhi ek.
+  // Na ho to: ek qism ke andar koi bhi, alag qismen sab (purana tareeqa)
+  match: z.enum(['all', 'any']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
   sort: z.enum(['followers', 'newest', 'name']).default('followers'),

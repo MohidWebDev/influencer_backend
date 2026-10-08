@@ -86,7 +86,7 @@ router.post('/inquiries', requireAuth, requireRole('business', 'agency'), create
 
 | Method | URL | Who | What |
 |---|---|---|---|
-| GET | `/api/people` | anyone | search: `q, profession, industry, topic, country, city, language, minFollowers, status, page, limit, sort (followers / newest / name)`. `profession/industry/topic` take slugs, comma separated |
+| GET | `/api/people` | anyone | search: `q, profession, industry, topic, country, city, language, minFollowers, status, openTo, match, page, limit, sort (followers / newest / name)`. `profession/industry/topic` take slugs and `country` takes 2-letter codes, all comma separated. Without `match`: any value inside one field, every field must match. `match=all` (Browse multi-select): the person must have every selected profession/industry/topic (countries stay "any of", a person has one country). `match=any`: the person matches at least one selected item of any field |
 | GET | `/api/people/:slug` | anyone | public profile |
 
 Public `GET /api/people` and `/api/people/:slug` are cached on the Vercel CDN for 10 s (stale-while-revalidate 20 s). A request with `?_fresh=<anything>` skips the CDN (`Cache-Control: no-store`); the frontend adds it for logged-in users so admins see changes instantly.

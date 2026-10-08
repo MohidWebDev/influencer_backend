@@ -60,13 +60,29 @@ export async function listPeople(req: Request, res: Response) {
     { slugs: query.topic, model: Topic, field: 'topics' },
   ] as const
 
+  // Har qism ki shart alag banao; "any" mein inhein $or se jorte hain
+  const conditions: QueryFilter<IPerson>[] = []
+  let impossible = false
   for (const { slugs, model, field } of taxonomyFilters) {
     if (!slugs?.length) continue
     const ids = await model.find({ slug: { $in: slugs } }).distinct('_id')
-    filter[field] = { $in: ids }
+    if (query.match === 'all') {
+      // Har chuni cheez zaroori; koi slug ghalat ho to koi natija nahi
+      if (ids.length < new Set(slugs).size) impossible = true
+      conditions.push({ [field]: { $all: ids } })
+    } else {
+      conditions.push({ [field]: { $in: ids } })
+    }
   }
+  // Insaan ka ek hi mulk hota hai: kai mulk hamesha "in mein se koi"
+  if (query.country?.length) conditions.push({ country: { $in: query.country } })
 
-  if (query.country) filter.country = query.country
+  if (impossible) conditions.push({ _id: { $in: [] } })
+  if (query.match === 'any' && conditions.length > 1) {
+    filter.$and = [...(filter.$and ?? []), { $or: conditions }]
+  } else {
+    for (const condition of conditions) Object.assign(filter, condition)
+  }
   if (query.city) filter.city = new RegExp(`^${escapeRegex(query.city)}$`, 'i')
   if (query.language) filter.languages = query.language
   if (query.minFollowers !== undefined) filter.totalFollowers = { $gte: query.minFollowers }
