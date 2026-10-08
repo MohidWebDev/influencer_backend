@@ -217,3 +217,7 @@ npm test
 ```
 
 Jest + Supertest with an in-memory MongoDB (`mongodb-memory-server` downloads a MongoDB binary the first time). Each test file uses its own database.
+
+## Author
+
+Built and maintained by [Hammad Toufeeq](https://github.com/hammadtoufeeq).
