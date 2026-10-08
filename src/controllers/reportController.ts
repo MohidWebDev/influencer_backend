@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express'
 import '../types/express'
 import { Report } from '../models/Report'
+import { Person } from '../models/Person'
+import { notifyAdmins } from '../services/notificationService'
 import { personExists } from '../services/personModerationService'
 import { AppError } from '../utils/AppError'
 import { sendSuccess } from '../utils/apiResponse'
@@ -27,6 +29,13 @@ export async function createReport(req: Request, res: Response) {
     reporter: req.user?.id,
     reporterName: input.reporterName || undefined,
     reporterEmail: input.reporterEmail || undefined,
+  })
+
+  const person = await Person.findById(input.personId).select('name')
+  await notifyAdmins({
+    type: 'report.new',
+    data: { person: person?.name, reason: input.reason },
+    link: `/admin/reports/${String(report._id)}`,
   })
 
   sendSuccess(res, { report: { _id: report._id, status: report.status } }, 201)

@@ -131,6 +131,24 @@ Error responses can carry extra data in `error.details`, for example `{ "attempt
 
 Codes are stored as SHA-256 hashes (salted with the claim id) and compared in constant time. Generating a new code invalidates the old one and resets attempts. Approving sets `person.claimedBy` through `setPersonOwner()`, moves a `public` profile to `contactable`, and auto-rejects other open claims for the same profile.
 
+## Notification endpoints (logged in)
+
+Notifications are stored per user in the `notifications` collection: `type`, `data` (names used to build the sentence on the frontend), `link` (page to open), `readAt`.
+
+| Method | URL | What |
+|---|---|---|
+| GET | `/api/notifications?page=&limit=&unread=true` | my notifications, newest first; `data.unread` = unread count |
+| GET | `/api/notifications/unread-count` | `{ unread }` for the bell badge |
+| PATCH | `/api/notifications/:id/read` | mark one as read (only your own) |
+| POST | `/api/notifications/read-all` | mark all as read |
+
+Sent automatically:
+
+- every active admin: `claim.new`, `claim.new_profile`, `claim.code_verified`, `claim.otp_locked` (link `/admin/claims/:id`), `report.new` (link `/admin/reports/:id`)
+- the talent: `claim.code_sent`, `claim.approved`, `claim.rejected` (link `/dashboard`)
+
+A failed notification never fails the action that triggered it.
+
 ## Admin endpoints (admin only)
 
 | Method | URL | What |

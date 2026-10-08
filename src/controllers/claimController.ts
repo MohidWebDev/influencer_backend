@@ -2,6 +2,8 @@ import type { Request, Response } from 'express'
 import { isValidObjectId } from 'mongoose'
 import '../types/express'
 import { Person } from '../models/Person'
+import { User } from '../models/User'
+import { notifyAdmins, notifyUser } from '../services/notificationService'
 import {
   CODE_TTL_MS,
   MAX_CODE_ATTEMPTS,
@@ -76,6 +78,12 @@ export async function createClaim(req: Request, res: Response) {
       links: input.links,
       note: input.note || undefined,
     },
+  })
+
+  await notifyAdmins({
+    type: 'claim.new',
+    data: { person: person.name, claimant: await nameOf(userId) },
+    link: claimLink(claim),
   })
 
   await claim.populate({ path: 'person', select: PERSON_FIELDS })
@@ -178,6 +186,11 @@ export async function createNewProfileClaim(req: Request, res: Response) {
       targetLabel: person.name,
       after: { status: claim.status, isNewProfile: true, name: person.name },
     })
+    await notifyAdmins({
+      type: 'claim.new_profile',
+      data: { person: person.name, claimant: await nameOf(userId) },
+      link: claimLink(claim),
+    })
     await claim.populate({ path: 'person', select: PERSON_FIELDS })
     sendSuccess(res, { claim }, 201)
   } catch (error) {
@@ -254,6 +267,11 @@ export async function verifyClaimCode(req: Request, res: Response) {
           otpLockedAt: claim.otpLockedAt,
         },
       })
+      await notifyAdmins({
+        type: 'claim.otp_locked',
+        data: { person: await personName(claim), claimant: await nameOf(claim.user) },
+        link: claimLink(claim),
+      })
       throw otpLockedError()
     }
 
@@ -278,9 +296,24 @@ export async function verifyClaimCode(req: Request, res: Response) {
   claim.verification.codeHash = undefined
   await claim.save()
 
+  await notifyAdmins({
+    type: 'claim.code_verified',
+    data: { person: await personName(claim), claimant: await nameOf(claim.user) },
+    link: claimLink(claim),
+  })
+
   await claim.populate({ path: 'person', select: PERSON_FIELDS })
   sendSuccess(res, { claim })
 }
+
+// Notification ke jumle ke liye naam
+async function nameOf(userId: unknown) {
+  const user = await User.findById(userId).select('name')
+  return user?.name
+}
+
+// Claim ka admin page
+const claimLink = (claim: { _id: unknown }) => `/admin/claims/${String(claim._id)}`
 
 function otpLockedError() {
   return new AppError(
@@ -364,6 +397,7 @@ export async function adminSendClaimCode(req: Request, res: Response) {
   }
   const code = issueCode(claim, channelUrl)
   await claim.save()
+  await notifyCodeSent(claim)
   await claim.populate(CLAIM_POPULATE)
 
   // Code sirf isi jawab mein ek dafa wapas aata hai, phir kabhi nahi
@@ -382,8 +416,18 @@ export async function adminResetClaimOtp(req: Request, res: Response) {
   const channelUrl = input.channelUrl ?? claim.verification.channelUrl ?? claim.evidence.links[0]
   const code = issueCode(claim, channelUrl)
   await claim.save()
+  await notifyCodeSent(claim)
   await claim.populate(CLAIM_POPULATE)
   sendSuccess(res, { claim, code })
+}
+
+// Talent ko: code us ke official account pe bhej diya gaya
+async function notifyCodeSent(claim: ClaimDoc) {
+  await notifyUser(claim.user, {
+    type: 'claim.code_sent',
+    data: { person: await personName(claim), channel: claim.verification.channelUrl },
+    link: '/dashboard',
+  })
 }
 
 // Final manzoori: person ka maalik set karo aur isi profile ke baqi khule claims reject
@@ -401,6 +445,21 @@ async function approveClaim(claim: ClaimDoc, reviewedBy: string) {
   claim.set({ status: 'approved', reviewedBy, reviewedAt })
   claim.verification.codeHash = undefined
   await claim.save()
+
+  const person = await personName(claim)
+  await notifyUser(claim.user, { type: 'claim.approved', data: { person }, link: '/dashboard' })
+
+  // Isi profile ke baqi khule claims khud reject: un talents ko bhi batao
+  const others = await ProfileClaim.find({
+    person: claim.person,
+    status: { $in: OPEN_CLAIM_STATUSES },
+    _id: { $ne: claim._id },
+  }).select('user')
+  await Promise.all(
+    others.map((other) =>
+      notifyUser(other.user, { type: 'claim.rejected', data: { person }, link: '/dashboard' }),
+    ),
+  )
 
   await ProfileClaim.updateMany(
     { person: claim.person, status: { $in: OPEN_CLAIM_STATUSES }, _id: { $ne: claim._id } },
@@ -463,6 +522,14 @@ export async function adminReviewClaim(req: Request, res: Response) {
     })
     claim.verification.codeHash = undefined
     await claim.save()
+    await notifyUser(claim.user, {
+      type: 'claim.rejected',
+      data: {
+        person: (await personName(claim)) ?? claim.requestedName,
+        reason: claim.rejectionReason,
+      },
+      link: '/dashboard',
+    })
     // Reject hui nayi profile ka chhupa draft mita do (sirf agar abhi bhi draft aur kisi ka nahi)
     if (claim.isNewProfile) {
       await Person.deleteOne({ _id: claim.person, isDraft: true, claimedBy: null })
