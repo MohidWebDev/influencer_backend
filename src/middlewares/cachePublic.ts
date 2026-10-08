@@ -7,7 +7,13 @@ import type { Request, Response, NextFunction } from 'express'
 // Cache-Control browser ke liye hai: har dafa server se poocho.
 // (Browser mein caching React Query karta hai)
 export function cachePublic(seconds: number, staleSeconds = seconds * 5) {
-  return (_req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    // Login user (admin) ki "_fresh" request: CDN chhodo, hamesha taaza jawab
+    if (req.query._fresh !== undefined) {
+      res.set('Cache-Control', 'no-store')
+      next()
+      return
+    }
     res.set('Cache-Control', 'public, max-age=0, must-revalidate')
     res.set('CDN-Cache-Control', `max-age=${seconds}, stale-while-revalidate=${staleSeconds}`)
     next()

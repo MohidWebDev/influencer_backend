@@ -47,3 +47,15 @@ describe('verified badge follows the claim', () => {
     expect((await Person.findById(claimed._id))?.verified).toBe(true)
   })
 })
+
+describe('public profile caching', () => {
+  it('lets the CDN cache guests briefly but never a _fresh request', async () => {
+    const request = (await import('supertest')).default
+    const guest = await request(app).get('/api/people')
+    expect(guest.headers['cdn-cache-control']).toBe('max-age=10, stale-while-revalidate=20')
+    const fresh = await request(app).get('/api/people?_fresh=123')
+    expect(fresh.status).toBe(200)
+    expect(fresh.headers['cdn-cache-control']).toBeUndefined()
+    expect(fresh.headers['cache-control']).toBe('no-store')
+  })
+})

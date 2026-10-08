@@ -30,9 +30,10 @@ function personUpdateAction(req: Request) {
   return 'person.update'
 }
 
-router.get('/', cachePublic(60), listPeople)
+// Mehman: CDN ka jawab zyada se zyada 10s purana (verified / claimed jaldi dikhe)
+router.get('/', cachePublic(10, 20), listPeople)
 router.get('/photos/:id', getPersonPhoto)
-router.get('/:slug', cachePublic(60), getPersonBySlug)
+router.get('/:slug', cachePublic(10, 20), getPersonBySlug)
 router.post(
   '/',
   requireAuth,

@@ -88,6 +88,9 @@ router.post('/inquiries', requireAuth, requireRole('business', 'agency'), create
 |---|---|---|---|
 | GET | `/api/people` | anyone | search: `q, profession, industry, topic, country, city, language, minFollowers, status, page, limit, sort (followers / newest / name)`. `profession/industry/topic` take slugs, comma separated |
 | GET | `/api/people/:slug` | anyone | public profile |
+
+Public `GET /api/people` and `/api/people/:slug` are cached on the Vercel CDN for 10 s (stale-while-revalidate 20 s). A request with `?_fresh=<anything>` skips the CDN (`Cache-Control: no-store`); the frontend adds it for logged-in users so admins see changes instantly.
+
 | GET | `/api/people/photos/:id` | anyone | profile photo stored in MongoDB (`photoUrl` points here). Cached for a year: a new photo gets a new id |
 | POST | `/api/people` | admin | create a profile (taxonomy as slugs). A new profile cannot be `verified` (409 `PROFILE_NOT_CLAIMED`) |
 | PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, visibility`. On a claimed profile the admin can only change `visibility` (403 `PROFILE_CLAIMED` otherwise). `verified` cannot be changed by hand (409 `AUTO_VERIFIED`): a profile becomes verified automatically when its claim is approved |
