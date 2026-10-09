@@ -111,6 +111,9 @@ describe('agreements', () => {
     const id = created.body.data.agreement._id
     expect(created.body.data.agreement.status).toBe('negotiating')
     expect(created.body.data.agreement.version).toBe(1)
+    // Khali signatures / reviews bhi aate hain (frontend inhe parhta hai)
+    expect(created.body.data.agreement.signatures).toEqual({})
+    expect(created.body.data.agreement.reviews).toEqual({})
     expect((await business.agent.post('/api/agreements').send({ hireId, terms })).body.error.code).toBe('AGREEMENT_EXISTS')
     expect((await talent.agent.get('/api/notifications')).body.data.notifications[0].type).toBe('agreement.proposed')
 
@@ -124,7 +127,7 @@ describe('agreements', () => {
       .send({ terms: { ...terms, revisions: 2 } })
     expect(countered.body.data.agreement.version).toBe(2)
     expect(countered.body.data.agreement.proposedBy).toBe('talent')
-    expect(countered.body.data.agreement.signatures.business).toBeUndefined()
+    expect(countered.body.data.agreement.signatures).toEqual({})
     expect(countered.body.data.agreement.history).toHaveLength(2)
 
     // Ghalat code, phir sahi

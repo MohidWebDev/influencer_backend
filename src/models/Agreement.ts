@@ -252,6 +252,8 @@ const agreementSchema = new Schema<IAgreement>(
     timestamps: true,
     collection: 'agreements',
     toJSON: {
+      // Khali signatures / reviews bhi jawab mein aayen ({}), warna frontend ko field hi nahi milti
+      minimize: false,
       transform: (_doc, ret: Record<string, unknown>) => {
         delete ret.__v
         delete ret.signCodes
