@@ -1,6 +1,11 @@
 import { Router } from 'express'
 import { adminGetClaim } from '../controllers/adminClaimDetailController'
 import {
+  adminGetBusiness,
+  adminListBusinesses,
+  adminReviewBusiness,
+} from '../controllers/businessController'
+import {
   adminGetReport,
   adminListReports,
   adminUpdateReport,
@@ -30,6 +35,10 @@ router.patch('/users/:id/role', adminUpdateUserRole)
 router.get('/reports', adminListReports)
 router.get('/reports/:id', adminGetReport)
 router.patch('/reports/:id', adminUpdateReport)
+
+router.get('/businesses', adminListBusinesses)
+router.get('/businesses/:id', adminGetBusiness)
+router.patch('/businesses/:id', adminReviewBusiness)
 
 router.get('/audit-logs', adminListAuditLogs)
 

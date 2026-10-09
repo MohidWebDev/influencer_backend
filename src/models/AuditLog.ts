@@ -1,6 +1,6 @@
 import { Schema, model, type Types } from 'mongoose'
 
-export const AUDIT_TARGET_TYPES = ['person', 'claim', 'user', 'report'] as const
+export const AUDIT_TARGET_TYPES = ['person', 'claim', 'user', 'report', 'business'] as const
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number]
 
 // Har admin action ka record: kis ne, kya kiya, kis cheez pe, pehle/baad mein kya tha

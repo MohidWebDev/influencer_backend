@@ -13,6 +13,8 @@ import {
   signRefreshToken,
   verifyRefreshToken,
 } from '../utils/tokens'
+import { BusinessProfile } from '../models/BusinessProfile'
+import { HireRequest } from '../models/HireRequest'
 import { Notification } from '../models/Notification'
 import { Person } from '../models/Person'
 import { ProfileClaim } from '../models/ProfileClaim'
@@ -191,6 +193,9 @@ export async function deleteAccount(req: Request, res: Response) {
     claimedBy: null,
   })
   await ProfileClaim.deleteMany({ user: user._id })
+  // Business ki company details aur bheji / aayi hui hire requests bhi
+  await BusinessProfile.deleteMany({ owner: user._id })
+  await HireRequest.deleteMany({ $or: [{ business: user._id }, { talent: user._id }] })
   await Notification.deleteMany({ recipient: user._id })
   await User.deleteOne({ _id: user._id })
 
