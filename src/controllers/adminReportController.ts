@@ -1,10 +1,12 @@
 import type { Request, Response } from 'express'
-import { isValidObjectId } from 'mongoose'
+import { isValidObjectId, type Types } from 'mongoose'
 import '../types/express'
 import { AuditLog } from '../models/AuditLog'
 import { Report } from '../models/Report'
 import { writeAuditLog } from '../services/auditService'
 import { hidePerson } from '../services/personModerationService'
+import { removeProfilePermanently } from '../services/profileOwnershipService'
+import { ProfileRemoval } from '../models/ProfileRemoval'
 import { AppError } from '../utils/AppError'
 import { sendSuccess } from '../utils/apiResponse'
 import { parseOrThrow } from '../utils/validation'
@@ -57,14 +59,29 @@ export async function adminUpdateReport(req: Request, res: Response) {
   const input = parseOrThrow(updateReportSchema, req.body ?? {})
   const report = await findReport(String(req.params.id))
   const before = { status: report.status, adminNote: report.adminNote }
+  const person = report.person as unknown as {
+    _id: Types.ObjectId
+    name: string
+    slug: string
+  } | null
+
+  // Profile mitana sirf removal request pe, aur report us ke saath "resolved"
+  if (input.deletePerson) {
+    if (report.reason !== 'removal_request' || !person) {
+      throw new AppError(409, 'INVALID_STATE', 'Only a removal request can delete the profile')
+    }
+    if (input.status !== 'resolved') {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Invalid input', {
+        status: 'Set the status to resolved to delete the profile',
+      })
+    }
+  }
 
   report.status = input.status
   if (input.adminNote !== undefined) report.adminNote = input.adminNote
   report.handledBy = req.user!.id as never
   report.handledAt = new Date()
   await report.save()
-
-  const person = report.person as unknown as { _id: unknown; name?: string }
 
   await writeAuditLog(req, {
     action: 'report.update',
@@ -75,7 +92,25 @@ export async function adminUpdateReport(req: Request, res: Response) {
     after: { status: report.status, adminNote: report.adminNote },
   })
 
-  if (input.hidePerson && person?._id) {
+  if (input.deletePerson && person) {
+    await removeProfilePermanently(person, report._id, req.user!.id)
+    await writeAuditLog(req, {
+      action: 'person.delete',
+      targetType: 'person',
+      targetId: person._id,
+      targetLabel: person.name,
+      before: { name: person.name, slug: person.slug },
+      after: { reason: `removal request ${report._id}` },
+    })
+  } else if (input.status !== 'reviewing') {
+    // Admin ne mitaye baghair faisla kar diya: profile rakhi jayegi (chhupi rehti hai)
+    await ProfileRemoval.updateMany(
+      { report: report._id, status: 'pending' },
+      { $set: { status: 'kept', decidedAt: new Date(), decidedBy: req.user!.id } },
+    )
+  }
+
+  if (input.hidePerson && !input.deletePerson && person?._id) {
     const hidden = await hidePerson(person._id)
     await writeAuditLog(req, {
       action: 'person.hide',

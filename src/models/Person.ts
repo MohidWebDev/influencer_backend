@@ -104,6 +104,9 @@ export interface IPerson {
   isDemo: boolean
   // Talent ki khud bheji hui profile: claim approve hone tak chhupi (visibility hidden)
   isDraft: boolean
+  // Claim se pehle ki public-source shakal. Maalik account mitaye to yahi wapas aati hai,
+  // taake us ki likhi baatein "unclaimed" profile pe na reh jayen
+  publicSnapshot?: Record<string, unknown> | null
   createdAt: Date
   updatedAt: Date
 }
@@ -199,12 +202,14 @@ const personSchema = new Schema<IPerson>(
     sourceRecords: { type: [sourceRecordSchema], default: [] },
     isDemo: { type: Boolean, default: false },
     isDraft: { type: Boolean, default: false },
+    publicSnapshot: { type: Schema.Types.Mixed, default: undefined, select: false },
   },
   {
     timestamps: true,
     toJSON: {
       transform: (_doc, ret: Record<string, unknown>) => {
         delete ret.__v
+        delete ret.publicSnapshot
         return ret
       },
     },

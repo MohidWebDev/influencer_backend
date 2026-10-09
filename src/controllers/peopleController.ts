@@ -4,6 +4,7 @@ import '../types/express'
 import { Person, type IPerson } from '../models/Person'
 import { PersonPhoto } from '../models/PersonPhoto'
 import { ProfileClaim } from '../models/ProfileClaim'
+import { ProfileRemoval } from '../models/ProfileRemoval'
 import { Industry, Profession, Topic } from '../models/taxonomy'
 import {
   generateUniquePersonSlug,
@@ -250,6 +251,11 @@ export async function deletePerson(req: Request, res: Response) {
   if (!person) throw new AppError(404, 'NOT_FOUND', 'Profile not found')
   // Is profile ke claims bhi saaf karo
   await ProfileClaim.deleteMany({ person: person._id })
+  // Hatane ki request baqi thi to woh bhi poori: seed is profile ko dobara nahi banayega
+  await ProfileRemoval.updateMany(
+    { person: person._id, status: 'pending' },
+    { $set: { status: 'removed', decidedAt: new Date(), decidedBy: req.user!.id } },
+  )
   await PersonPhoto.deleteMany({ person: person._id })
 
   sendSuccess(res, { deleted: true, id, slug: person.slug })

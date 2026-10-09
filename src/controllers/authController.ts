@@ -20,6 +20,7 @@ import { Notification } from '../models/Notification'
 import { Person } from '../models/Person'
 import { ProfileClaim } from '../models/ProfileClaim'
 import { writeAuditLog } from '../services/auditService'
+import { releaseOwnedProfiles } from '../services/profileOwnershipService'
 import { parseOrThrow } from '../utils/validation'
 import {
   changePasswordSchema,
@@ -145,7 +146,7 @@ export async function changePassword(req: Request, res: Response) {
 // DELETE /api/auth/account -> apna account hamesha ke liye mitao.
 // Confirm mein "delete <naam>" likhna zaroori (bade/chhote huroof se farq nahi)
 export async function deleteAccount(req: Request, res: Response) {
-  const { confirm } = parseOrThrow(deleteAccountSchema, req.body ?? {})
+  const { confirm, removeProfile } = parseOrThrow(deleteAccountSchema, req.body ?? {})
   const user = await User.findById(req.user!.id)
   if (!user) throw new AppError(401, 'UNAUTHORIZED', 'Please log in')
 
@@ -185,17 +186,16 @@ export async function deleteAccount(req: Request, res: Response) {
     targetId: user._id,
     targetLabel: user.email,
     before: { role: user.role, status: user.status },
+    after: { removeProfile },
   })
 
-  // Talent ki profile wapas "unclaimed" (profile site pe rehti hai, bas maalik nahi)
-  // Maalik gaya to us ki services / availability bhi (profile wapas aam public profile)
-  await Person.updateMany(
-    { claimedBy: user._id },
-    {
-      $set: { claimedBy: null, verified: false, services: [], status: 'public' },
-      $unset: { availability: 1 },
-    },
-  )
+  // Talent ki profile: maalik ki cheezen hat kar wapas "unclaimed", ya hatane ki request,
+  // ya (khud banayi ho to) poori mit jati hai
+  const profile = await releaseOwnedProfiles(user._id, {
+    removeProfile,
+    name: user.name,
+    email: user.email,
+  })
   // Talent ki bheji hui chhupi (draft) profiles aur us ke claims / notifications mita do
   const drafts = await ProfileClaim.find({ user: user._id, isNewProfile: true }).select('person')
   await Person.deleteMany({
@@ -216,5 +216,5 @@ export async function deleteAccount(req: Request, res: Response) {
   await User.deleteOne({ _id: user._id })
 
   clearAuthCookies(res)
-  sendSuccess(res, { deleted: true })
+  sendSuccess(res, { deleted: true, profile })
 }

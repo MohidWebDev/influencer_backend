@@ -4,6 +4,7 @@ import { PersonPhoto } from '../models/PersonPhoto'
 import { ProfileClaim } from '../models/ProfileClaim'
 import { Industry, Profession, Topic } from '../models/taxonomy'
 import { resolveTaxonomySlugs } from '../services/personService'
+import { blockedSlugs } from '../services/profileOwnershipService'
 import { REAL_PEOPLE, type RealPerson } from './realPeople'
 import { fetchWikiPhoto } from './wikimediaPhotos'
 
@@ -38,8 +39,6 @@ async function upsertRealPerson(real: RealPerson) {
         industries,
         topics,
         roles: ['talent'],
-        status: 'public',
-        visibility: 'visible',
         isDemo: false,
         isDraft: false,
         sourceRecords: [
@@ -50,7 +49,9 @@ async function upsertRealPerson(real: RealPerson) {
           },
         ],
       },
-      $setOnInsert: { claimedBy: null, verified: false },
+      // Status / visibility sirf pehli dafa: dobara chalane pe admin ki takedown ya
+      // maalik ka "contactable" status wapas na palte
+      $setOnInsert: { claimedBy: null, verified: false, status: 'public', visibility: 'visible' },
     },
     { upsert: true, returnDocument: 'after' },
   )
@@ -104,7 +105,13 @@ export async function seedRealPeople(withPhotos: boolean) {
   console.log(`  Removed ${removed} dummy people`)
 
   const report: { name: string; slug: string; outcome: PhotoOutcome; note: string }[] = []
+  // Jin profiles ko hatane ki request hai ya jo mita di gayin, unhein dobara nahi banana
+  const blocked = await blockedSlugs()
   for (const real of REAL_PEOPLE) {
+    if (blocked.has(real.slug)) {
+      console.log(`  removed  ${real.name} (removal requested, not re-added)`)
+      continue
+    }
     const person = await upsertRealPerson(real)
     const photo = withPhotos
       ? await syncPhoto(person._id, real)

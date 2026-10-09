@@ -36,6 +36,8 @@ export const updateReportSchema = z.object({
   adminNote: z.string().trim().max(1000).optional(),
   // Takedown: profile ko public site se chhupa do
   hidePerson: z.boolean().optional(),
+  // Sirf "removal_request" pe: profile hamesha ke liye mitao (seed dobara nahi banayega)
+  deletePerson: z.boolean().optional(),
 })
 
 export const listAuditLogsQuerySchema = z.object({

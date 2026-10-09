@@ -32,6 +32,8 @@ export const changePasswordSchema = z
 // User ko "delete <apna naam>" likhna hota hai
 export const deleteAccountSchema = z.object({
   confirm: z.string().trim().min(1, 'Type the confirmation text'),
+  // Talent: account ke saath public profile bhi hatane ki request
+  removeProfile: z.boolean().default(false),
 })
 
 export type RegisterInput = z.infer<typeof registerSchema>

@@ -22,6 +22,8 @@ export interface IReport {
   reporter?: Types.ObjectId
   reporterName?: string
   reporterEmail?: string
+  // Profile ke maalik ne khud account mitate waqt hatane ko kaha
+  fromOwner?: boolean
   status: ReportStatus
   adminNote?: string
   handledBy?: Types.ObjectId
@@ -38,6 +40,7 @@ const reportSchema = new Schema<IReport>(
     reporter: { type: Schema.Types.ObjectId, ref: 'User' },
     reporterName: { type: String, trim: true, maxlength: 100 },
     reporterEmail: { type: String, trim: true, lowercase: true },
+    fromOwner: { type: Boolean, default: false },
     status: { type: String, enum: REPORT_STATUSES, default: 'open' },
     adminNote: { type: String, trim: true, maxlength: 1000 },
     handledBy: { type: Schema.Types.ObjectId, ref: 'User' },

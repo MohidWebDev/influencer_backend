@@ -69,7 +69,7 @@ Request -> app.ts -> routes -> middlewares -> controller -> model -> sendSuccess
 | POST | `/api/auth/logout` | anyone | clears cookies, invalidates refresh tokens |
 | GET | `/api/auth/me` | logged in | current user |
 | PATCH | `/api/auth/password` | logged in | body `currentPassword, newPassword` (min 8, must differ). Wrong current password: 400 `WRONG_PASSWORD`. Logs out other devices; this device gets new cookies |
-| DELETE | `/api/auth/account` | logged in | body `confirm` = `delete <your name>` (case and extra spaces ignored), else 400 `CONFIRMATION_MISMATCH`. The last active admin cannot delete themselves (409 `LAST_ADMIN`). Owned profile goes back to unclaimed (and loses the verified badge); the user's claims, draft profiles and notifications are removed; audit action `user.self_delete` |
+| DELETE | `/api/auth/account` | logged in | body `confirm` = `delete <your name>` (case and extra spaces ignored), else 400 `CONFIRMATION_MISMATCH`; talents can add `removeProfile: true`. The last active admin cannot delete themselves (409 `LAST_ADMIN`); an `active` / `disputed` agreement blocks it (409 `ACTIVE_AGREEMENT`). Removes the user's claims, drafts, business details, hire requests and notifications; audit action `user.self_delete`. Response `profile` says what happened to an owned profile (see "Deleting a talent account") |
 | POST | `/api/auth/forgot-password` | public | body `email`. Emails a 6-digit code (valid 10 min). Always answers `{ sent: true, resendIn: 60 }`, so it never reveals whether an email is registered. A new code is sent at most once every 60 s; suspended accounts get nothing |
 | POST | `/api/auth/forgot-password/verify` | public | body `email, code`. Wrong code: 400 `INVALID_CODE` with `details.attemptsLeft`; after 5 wrong tries 429 `TOO_MANY_ATTEMPTS`; old code 400 `CODE_EXPIRED`. Success returns a one-time `resetToken` (valid 15 min); the code stops working |
 | POST | `/api/auth/reset-password` | public | body `email, resetToken, newPassword` (min 8). Bad or expired token: 400 `RESET_EXPIRED`. Sets the password, logs out every other device, logs in on this one and emails a "password changed" notice |
@@ -193,6 +193,19 @@ The code can be sent to the business's login email, website, any proof link or c
 | PATCH | `/api/admin/businesses/:id` | admin | body `action: approve / reject, reason?`. Approve only from `code_verified` (409 `BUSINESS_CODE_NOT_VERIFIED`). Reject from any other status, including `approved` (takes away hiring) |
 
 Hire statuses: `pending`, `accepted`, `declined`, `cancelled`. Notifications: admins get `business.new`, `business.code_verified`, `business.otp_locked`; the business gets `business.code_sent`, `business.approved`, `business.rejected`, `hire.accepted`, `hire.declined`; the talent gets `hire.new`, `hire.cancelled`. Audit actions: `business.send_code`, `business.reset_otp`, `business.otp_locked` (the business is the actor), `business.verify_manual`, `business.approve`, `business.reject`. Deleting an account removes its business details and its hire requests.
+
+## Deleting a talent account
+
+What happens to the profile the talent owned:
+
+| Case | Result (`profile` in the response) |
+|---|---|
+| Profile the talent created themselves (approved new-profile claim) | deleted with the account (`deleted`) |
+| Public-source profile, "delete my account only" | back to unclaimed: verified badge, services and availability removed, and the owner's edits replaced by the public-source version saved when the claim was approved (`unclaimed`) |
+| Public-source profile, `removeProfile: true` | same clean-up, then hidden at once; a `removal_request` report (`fromOwner: true`) and a pending `profile_removals` record are created for the admins (`removal_requested`) |
+| Claimed before snapshots existed (no saved public version) | cleaned up and hidden, with an `other` report so an admin can check it and make it visible again (`hidden_for_review`) |
+
+When a claim is approved, `setPersonOwner()` stores the profile's public fields in `publicSnapshot` (never returned by the API). An admin finishes a removal request with `PATCH /api/admin/reports/:id` body `status: resolved, deletePerson: true` (only for `removal_request` reports, else 409 `INVALID_STATE`): the profile, its photos and claims are deleted, the removal is marked `removed`, and audit action `person.delete` is written. Resolving or rejecting without `deletePerson` marks it `kept` (the profile stays hidden until an admin shows it). `DELETE /api/people/:id` also completes a pending removal. `npm run seed:real` skips every slug with a `pending` or `removed` removal, and it no longer resets `status` or `visibility` of existing profiles (only new ones start `public` and visible), so takedowns and claimed statuses survive a re-run.
 
 ## Agreement endpoints
 

@@ -3,6 +3,7 @@ import { Person } from '../models/Person'
 import type { ITaxonomyItem } from '../models/taxonomy'
 import { AppError } from '../utils/AppError'
 import { slugify } from '../utils/slugify'
+import { savePublicSnapshot } from './profileOwnershipService'
 
 // Naam se unique slug: "hamid-mir", phir "hamid-mir-2", "hamid-mir-3" ...
 export async function generateUniquePersonSlug(name: string) {
@@ -50,6 +51,9 @@ export async function setPersonOwner(personId: Types.ObjectId | string, userId: 
   if (!person) {
     throw new AppError(409, 'ALREADY_CLAIMED', 'This profile has already been claimed')
   }
+
+  // Maalik ke edit karne se pehle ki public-source shakal (account mitane pe wapas aati hai)
+  if (!person.isDraft) await savePublicSnapshot(person._id)
 
   // Document: claim hone ke baad profile "public" se "contactable" ho jati hai
   if (person.status === 'public') {
