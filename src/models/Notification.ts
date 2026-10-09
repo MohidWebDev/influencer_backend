@@ -8,10 +8,18 @@ export const NOTIFICATION_TYPES = [
   'claim.code_verified',
   'claim.otp_locked',
   'report.new',
+  'business.new',
   // Talent ke liye
   'claim.code_sent',
   'claim.approved',
   'claim.rejected',
+  'hire.new',
+  'hire.cancelled',
+  // Business ke liye
+  'business.approved',
+  'business.rejected',
+  'hire.accepted',
+  'hire.declined',
 ] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 

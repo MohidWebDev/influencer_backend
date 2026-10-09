@@ -151,6 +151,31 @@ Error responses can carry extra data in `error.details`, for example `{ "attempt
 
 Codes are stored as SHA-256 hashes (salted with the claim id) and compared in constant time. Generating a new code invalidates the old one and resets attempts. Approving sets `person.claimedBy` through `setPersonOwner()`, moves a `public` profile to `contactable`, and auto-rejects other open claims for the same profile.
 
+## Business endpoints
+
+A business account must be verified by an admin before it can hire. Only verified talents (claimed profiles with the verified badge) can be hired.
+
+```
+pending   business sent its company details, waiting for an admin
+approved  verified business: can send hire requests to verified talents
+rejected  admin rejected (rejectionReason); the business fixes the details and saves again -> pending
+```
+
+| Method | URL | Who | What |
+|---|---|---|---|
+| GET | `/api/business/profile` | business | `{ business }` (company details + `status`), or `null` |
+| PUT | `/api/business/profile` | business | body `companyName, websiteUrl, country (2 letters), industry?, companySize? (1-10, 11-50, 51-200, 201-1000, 1000+), description?, registrationNumber?, city?, contactPhone?, proofLinks[]? (max 5)`. First save creates it as `pending` (201). Saving a pending / rejected profile sends it for review again. An approved business stays verified for small edits; changing `companyName, registrationNumber, websiteUrl` or `country` sends it back to `pending` |
+| POST | `/api/business/hires` | verified business | body `personId, title, message (min 20), serviceId?, budget? { amount, currency }, startDate?`. Not verified: 403 `BUSINESS_NOT_VERIFIED`. Talent not verified / unclaimed: 403 `TALENT_NOT_VERIFIED`. One pending request per talent (409 `HIRE_PENDING`). `serviceId` must be one of the talent's active services |
+| GET | `/api/business/hires` | business | my hire requests, newest first |
+| POST | `/api/business/hires/:id/cancel` | business | cancel a `pending` request |
+| GET | `/api/me/hire-requests` | talent | requests sent to me, with the business details |
+| PATCH | `/api/me/hire-requests/:id` | talent | body `action: accept / decline, note?`. Only from `pending` |
+| GET | `/api/admin/businesses?status=&q=&page=&limit=` | admin | verification queue (pending oldest first) |
+| GET | `/api/admin/businesses/:id` | admin | details, owner and audit history |
+| PATCH | `/api/admin/businesses/:id` | admin | body `action: approve / reject, reason?`. An approved business can also be rejected later (takes away hiring) |
+
+Hire statuses: `pending`, `accepted`, `declined`, `cancelled`. Notifications: admins get `business.new`; the business gets `business.approved`, `business.rejected`, `hire.accepted`, `hire.declined`; the talent gets `hire.new`, `hire.cancelled`. Audit actions: `business.approve`, `business.reject`. Deleting an account removes its business details and its hire requests.
+
 ## Notification endpoints (logged in)
 
 Notifications are stored per user in the `notifications` collection: `type`, `data` (names used to build the sentence on the frontend), `link` (page to open), `readAt`.
@@ -194,7 +219,7 @@ Every route below uses `requireAuth` + `requireRole('admin')`.
 
 | Method | URL | What |
 |---|---|---|
-| GET | `/api/admin/stats` | counts for people, users, claims and reports |
+| GET | `/api/admin/stats` | counts for people, users, claims, reports and businesses (`pending`, `approved`) |
 | GET | `/api/admin/claims/:id` | one claim with person, claimant, evidence and audit history |
 | GET | `/api/admin/users?q=&role=&status=&page=&limit=` | users list |
 | PATCH | `/api/admin/users/:id/status` | body `status: active / suspended`. Not yourself; one active admin must remain |
@@ -208,7 +233,7 @@ Public: `POST /api/reports` with `personId, reason, details, reporterName?, repo
 
 ### Audit log
 
-Every admin action (and an OTP lock) is stored in the `audit_logs` collection: actor, action, target, before/after snapshot, IP and time. Actions: `person.create`, `person.update`, `person.delete`, `person.hide`, `claim.send_code`, `claim.reset_otp`, `claim.verify_manual`, `claim.otp_locked` and `claim.new_profile` (written with the talent as the actor), `claim.approve`, `claim.reject`, `user.suspend`, `user.unsuspend`, `user.role_change`, `report.update`. Passwords, token versions and claim codes are never stored.
+Every admin action (and an OTP lock) is stored in the `audit_logs` collection: actor, action, target, before/after snapshot, IP and time. Actions: `person.create`, `person.update`, `person.delete`, `person.hide`, `claim.send_code`, `claim.reset_otp`, `claim.verify_manual`, `claim.otp_locked` and `claim.new_profile` (written with the talent as the actor), `claim.approve`, `claim.reject`, `business.approve`, `business.reject`, `user.suspend`, `user.unsuspend`, `user.role_change`, `report.update`. Passwords, token versions and claim codes are never stored.
 
 ## Tests
 
