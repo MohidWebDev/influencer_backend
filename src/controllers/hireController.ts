@@ -12,6 +12,9 @@ import { sendSuccess } from '../utils/apiResponse'
 import { parseOrThrow } from '../utils/validation'
 import { createHireSchema, respondHireSchema } from '../validators/businessValidator'
 
+// Dashboard ka hire requests wala page (talent aur business dono ke liye)
+const HIRES_LINK = '/dashboard/hire-requests'
+
 const PERSON_POPULATE = { path: 'person', select: 'name slug headline photoUrl verified' }
 const BUSINESS_POPULATE = {
   path: 'businessProfile',
@@ -102,7 +105,7 @@ export async function createHire(req: Request, res: Response) {
   await notifyUser(person.claimedBy, {
     type: 'hire.new',
     data: { business: businessProfile!.companyName, person: person.name },
-    link: '/dashboard',
+    link: HIRES_LINK,
   })
 
   await hire.populate([PERSON_POPULATE, BUSINESS_POPULATE])
@@ -136,7 +139,7 @@ export async function cancelHire(req: Request, res: Response) {
   await notifyUser(hire.talent, {
     type: 'hire.cancelled',
     data: { business: data.businessProfile?.companyName, person: data.person?.name },
-    link: '/dashboard',
+    link: HIRES_LINK,
   })
   const [json] = await withContacts([hire], 'business')
   sendSuccess(res, { hire: json })
@@ -170,7 +173,7 @@ export async function respondHire(req: Request, res: Response) {
   await notifyUser(hire.business, {
     type: action === 'accept' ? 'hire.accepted' : 'hire.declined',
     data: { person },
-    link: '/dashboard',
+    link: HIRES_LINK,
   })
   const [json] = await withContacts([hire], 'talent')
   sendSuccess(res, { hire: json })
