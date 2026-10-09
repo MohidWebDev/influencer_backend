@@ -513,6 +513,24 @@ export async function businessRatings(businessUserIds: unknown[]) {
   )
 }
 
+// Businesses ki di hui rating, har talent profile ki (shortlist ke compare ke liye)
+export async function personRatings(personIds: unknown[]) {
+  if (personIds.length === 0) return new Map<string, { average: number; count: number }>()
+  const rows = await Agreement.aggregate<{ _id: unknown; average: number; count: number }>([
+    {
+      $match: {
+        person: { $in: personIds },
+        status: 'completed',
+        'reviews.business': { $exists: true },
+      },
+    },
+    { $group: { _id: '$person', average: { $avg: '$reviews.business.rating' }, count: { $sum: 1 } } },
+  ])
+  return new Map(
+    rows.map((r) => [String(r._id), { average: Math.round(r.average * 10) / 10, count: r.count }]),
+  )
+}
+
 // GET /api/admin/agreements -> dispute wale pehle
 export async function adminListAgreements(req: Request, res: Response) {
   const query = parseOrThrow(adminListAgreementsQuerySchema, req.query)

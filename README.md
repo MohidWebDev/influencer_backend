@@ -244,6 +244,24 @@ Talent hire requests also carry `businessRating { average, count }` (what talent
 
 Escrow (holding the payment until milestones are approved) is planned for later; the milestones and signed amounts are already in place for it.
 
+## Shortlist endpoints
+
+Business, agency and organization accounts keep named lists of people (for example one per campaign), with a private note on each person. Lists are private to their owner.
+
+| Method | URL | What |
+|---|---|---|
+| GET | `/api/shortlists` | my lists, latest first: `name, description, count, preview` (first 4 people) |
+| GET | `/api/shortlists/saved` | `{ lists: [{ _id, name }], saved: { <personId>: [listId] } }` for the save button |
+| POST | `/api/shortlists` | body `name (max 80), description?`. Same name twice (case ignored): 409 `SHORTLIST_EXISTS`. Up to 50 lists (409 `TOO_MANY_SHORTLISTS`) |
+| GET | `/api/shortlists/:id` | the list with each person's details for comparing (headline, location, followers per platform, active services and prices, availability, verified), `note`, `rating { average, count }` from completed agreements, and `hiring { hireStatus, agreementStatus }` for the business's latest hire request. A hidden or deleted profile stays in the list with `available: false` |
+| PATCH | `/api/shortlists/:id` | body `name?, description?` |
+| DELETE | `/api/shortlists/:id` | delete the list |
+| POST | `/api/shortlists/:id/items` | body `personId, note?`. Only visible profiles; adding someone already in the list only updates the note. Up to 200 people (409 `SHORTLIST_FULL`) |
+| PATCH | `/api/shortlists/:id/items/:personId` | body `note` |
+| DELETE | `/api/shortlists/:id/items/:personId` | remove the person from the list |
+
+Another user's list answers 404. Deleting an account deletes its lists.
+
 ## Notification endpoints (logged in)
 
 Notifications are stored per user in the `notifications` collection: `type`, `data` (names used to build the sentence on the frontend), `link` (page to open), `readAt`.

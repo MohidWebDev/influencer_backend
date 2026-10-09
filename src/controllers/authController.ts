@@ -19,6 +19,7 @@ import { HireRequest } from '../models/HireRequest'
 import { Notification } from '../models/Notification'
 import { Person } from '../models/Person'
 import { ProfileClaim } from '../models/ProfileClaim'
+import { Shortlist } from '../models/Shortlist'
 import { writeAuditLog } from '../services/auditService'
 import { releaseOwnedProfiles } from '../services/profileOwnershipService'
 import { parseOrThrow } from '../utils/validation'
@@ -213,6 +214,7 @@ export async function deleteAccount(req: Request, res: Response) {
     { $set: { status: 'cancelled', cancelledAt: new Date(), cancelReason: 'Account deleted' } },
   )
   await Notification.deleteMany({ recipient: user._id })
+  await Shortlist.deleteMany({ owner: user._id })
   await User.deleteOne({ _id: user._id })
 
   clearAuthCookies(res)
