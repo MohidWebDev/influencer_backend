@@ -18,6 +18,8 @@ export interface IHireRequest {
   status: HireStatus
   respondedAt?: Date
   responseNote?: string
+  // Accept ke baad bana muahida (agar bana)
+  agreement?: Types.ObjectId
   createdAt: Date
   updatedAt: Date
 }
@@ -46,6 +48,7 @@ const hireRequestSchema = new Schema<IHireRequest>(
     status: { type: String, enum: HIRE_STATUSES, default: 'pending' },
     respondedAt: { type: Date },
     responseNote: { type: String, trim: true, maxlength: 500 },
+    agreement: { type: Schema.Types.ObjectId, ref: 'Agreement' },
   },
   {
     timestamps: true,

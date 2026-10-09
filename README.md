@@ -194,6 +194,43 @@ The code can be sent to the business's login email, website, any proof link or c
 
 Hire statuses: `pending`, `accepted`, `declined`, `cancelled`. Notifications: admins get `business.new`, `business.code_verified`, `business.otp_locked`; the business gets `business.code_sent`, `business.approved`, `business.rejected`, `hire.accepted`, `hire.declined`; the talent gets `hire.new`, `hire.cancelled`. Audit actions: `business.send_code`, `business.reset_otp`, `business.otp_locked` (the business is the actor), `business.verify_manual`, `business.approve`, `business.reject`. Deleting an account removes its business details and its hire requests.
 
+## Agreement endpoints
+
+After a talent accepts a hire request, the business can turn it into a written agreement. Both sides negotiate the terms and sign with a one-time code sent to their login email. Once both have signed the same version, the terms are locked.
+
+```
+negotiating  terms are being agreed; either side can propose new terms (a new version clears the signatures)
+active       both signed the current version; terms are locked with a SHA-256 fingerprint (signedHash)
+disputed     one side opened a dispute; an admin decides (continue / complete / cancel)
+completed    every milestone approved by the business
+cancelled    withdrawn before signing, or cancelled by an admin in a dispute
+```
+
+Terms: `title, scope, currency, milestones[] { title, amount, dueDate? } (1-10), paymentTerms?, usageRights?, revisions (0-20, default 2), cancellationTerms?`. Every proposed version is kept in `history`. A signature stores the version, time, name, email, IP and user agent. Signing codes are hashed, expire after 10 minutes, can be resent after 60 s and allow 5 wrong tries.
+
+| Method | URL | Who | What |
+|---|---|---|---|
+| POST | `/api/agreements` | business | body `hireId, terms`. The hire request must be `accepted` (409 `HIRE_NOT_ACCEPTED`), one agreement per request (409 `AGREEMENT_EXISTS`). The hire request gets `agreement` (its id) |
+| GET | `/api/agreements` | business / talent | my agreements, latest first |
+| GET | `/api/agreements/:id` | the two parties | `{ agreement, side }` (`side` is `business` or `talent`) |
+| PUT | `/api/agreements/:id/terms` | the two parties | body `terms`. Counter-offer while `negotiating`: new version, both signatures cleared |
+| POST | `/api/agreements/:id/sign/code` | the two parties | emails a 6-digit code. Already signed this version: 409 `ALREADY_SIGNED`. Too soon: 429 `TOO_SOON` with `details.retryIn` |
+| POST | `/api/agreements/:id/sign` | the two parties | body `code`. Wrong: 400 `INVALID_CODE` (`details.attemptsLeft`), 5 tries: 429 `TOO_MANY_ATTEMPTS`, expired: 410 `CODE_EXPIRED`, terms changed since the code was sent: 409 `NO_ACTIVE_CODE`. The second signature makes the agreement `active` |
+| POST | `/api/agreements/:id/cancel` | the two parties | body `reason?`. Only while `negotiating` |
+| POST | `/api/agreements/:id/milestones/:index/deliver` | talent | body `note, link?`. `pending` -> `delivered` |
+| POST | `/api/agreements/:id/milestones/:index/approve` | business | `delivered` -> `approved`. The last approval completes the agreement |
+| POST | `/api/agreements/:id/milestones/:index/request-changes` | business | body `note`. `delivered` -> `pending`, uses one revision (409 `NO_REVISIONS_LEFT` when all are used) |
+| POST | `/api/agreements/:id/dispute` | the two parties | body `reason` (min 20). Only while `active`; admins are notified |
+| POST | `/api/agreements/:id/review` | the two parties | body `rating (1-5), comment?`. Once per side, only when `completed` |
+| GET | `/api/people/:slug/reviews` | anyone | `{ rating { average, count }, reviews[] }`: what businesses wrote about the talent |
+| GET | `/api/admin/agreements?status=&page=&limit=` | admin | all agreements |
+| GET | `/api/admin/agreements/:id` | admin | agreement with versions and audit history |
+| POST | `/api/admin/agreements/:id/resolve` | admin | body `outcome: continue / complete / cancel, note`. Only while `disputed` |
+
+Talent hire requests also carry `businessRating { average, count }` (what talents rated that business). An account with an `active` or `disputed` agreement cannot be deleted (409 `ACTIVE_AGREEMENT`); its unsigned agreements are cancelled when it is. Notifications: `agreement.proposed`, `agreement.updated`, `agreement.signed`, `agreement.active`, `agreement.cancelled`, `agreement.delivered`, `agreement.approved`, `agreement.changes_requested`, `agreement.completed`, `agreement.disputed`, `agreement.resolved`, `agreement.reviewed` to the parties, `agreement.disputed_admin` to admins. Audit actions: `agreement.sign`, `agreement.dispute`, `agreement.resolve`.
+
+Escrow (holding the payment until milestones are approved) is planned for later; the milestones and signed amounts are already in place for it.
+
 ## Notification endpoints (logged in)
 
 Notifications are stored per user in the `notifications` collection: `type`, `data` (names used to build the sentence on the frontend), `link` (page to open), `readAt`.
@@ -237,7 +274,7 @@ Every route below uses `requireAuth` + `requireRole('admin')`.
 
 | Method | URL | What |
 |---|---|---|
-| GET | `/api/admin/stats` | counts for people, users, claims, reports and businesses (`needsAction`, `approved`) |
+| GET | `/api/admin/stats` | counts for people, users, claims, reports, businesses (`needsAction`, `approved`) and agreements (`disputed`, `active`) |
 | GET | `/api/admin/claims/:id` | one claim with person, claimant, evidence and audit history |
 | GET | `/api/admin/users?q=&role=&status=&page=&limit=` | users list |
 | PATCH | `/api/admin/users/:id/status` | body `status: active / suspended`. Not yourself; one active admin must remain |

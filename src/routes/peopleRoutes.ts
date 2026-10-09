@@ -7,6 +7,7 @@ import {
   listPeople,
   updatePerson,
 } from '../controllers/peopleController'
+import { listPersonReviews } from '../controllers/agreementController'
 import { cachePublic } from '../middlewares/cachePublic'
 import { audit } from '../middlewares/audit'
 import { requireAuth } from '../middlewares/requireAuth'
@@ -33,6 +34,7 @@ function personUpdateAction(req: Request) {
 // Mehman: CDN ka jawab zyada se zyada 10s purana (verified / claimed jaldi dikhe)
 router.get('/', cachePublic(10, 20), listPeople)
 router.get('/photos/:id', getPersonPhoto)
+router.get('/:slug/reviews', cachePublic(10, 20), listPersonReviews)
 router.get('/:slug', cachePublic(10, 20), getPersonBySlug)
 router.post(
   '/',

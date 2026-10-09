@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import adminRoutes from './adminRoutes'
+import agreementRoutes from './agreementRoutes'
 import authRoutes from './authRoutes'
 import businessRoutes from './businessRoutes'
 import claimRoutes from './claimRoutes'
@@ -21,5 +22,6 @@ router.use('/admin', adminRoutes)
 router.use('/notifications', notificationRoutes)
 router.use('/me', serviceRoutes)
 router.use('/business', businessRoutes)
+router.use('/agreements', agreementRoutes)
 
 export default router

@@ -13,6 +13,7 @@ import {
   signRefreshToken,
   verifyRefreshToken,
 } from '../utils/tokens'
+import { Agreement } from '../models/Agreement'
 import { BusinessProfile } from '../models/BusinessProfile'
 import { HireRequest } from '../models/HireRequest'
 import { Notification } from '../models/Notification'
@@ -167,6 +168,16 @@ export async function deleteAccount(req: Request, res: Response) {
     }
   }
 
+  // Chalte (signed) muahide ke beech account nahi mit sakta: doosri taraf ka haq hai
+  const party = { $or: [{ business: user._id }, { talent: user._id }] }
+  if (await Agreement.exists({ ...party, status: { $in: ['active', 'disputed'] } })) {
+    throw new AppError(
+      409,
+      'ACTIVE_AGREEMENT',
+      'Finish or resolve your active agreements before deleting your account',
+    )
+  }
+
   // Record ke liye (actor ka email audit log mein mehfooz rehta hai)
   await writeAuditLog(req, {
     action: 'user.self_delete',
@@ -196,6 +207,11 @@ export async function deleteAccount(req: Request, res: Response) {
   // Business ki company details aur bheji / aayi hui hire requests bhi
   await BusinessProfile.deleteMany({ owner: user._id })
   await HireRequest.deleteMany({ $or: [{ business: user._id }, { talent: user._id }] })
+  // Jo muahide abhi sign nahi hue woh khatam; signed / mukammal muahide record ke liye rehte hain
+  await Agreement.updateMany(
+    { ...party, status: 'negotiating' },
+    { $set: { status: 'cancelled', cancelledAt: new Date(), cancelReason: 'Account deleted' } },
+  )
   await Notification.deleteMany({ recipient: user._id })
   await User.deleteOne({ _id: user._id })
 

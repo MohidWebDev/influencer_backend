@@ -11,6 +11,7 @@ export const NOTIFICATION_TYPES = [
   'business.new',
   'business.code_verified',
   'business.otp_locked',
+  'agreement.disputed_admin',
   // Talent ke liye
   'claim.code_sent',
   'claim.approved',
@@ -23,6 +24,19 @@ export const NOTIFICATION_TYPES = [
   'business.rejected',
   'hire.accepted',
   'hire.declined',
+  // Muahide ke dono taraf
+  'agreement.proposed',
+  'agreement.updated',
+  'agreement.signed',
+  'agreement.active',
+  'agreement.cancelled',
+  'agreement.delivered',
+  'agreement.approved',
+  'agreement.changes_requested',
+  'agreement.completed',
+  'agreement.disputed',
+  'agreement.resolved',
+  'agreement.reviewed',
 ] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 

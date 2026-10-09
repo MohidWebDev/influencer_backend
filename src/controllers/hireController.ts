@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express'
 import { isValidObjectId } from 'mongoose'
 import '../types/express'
+import { businessRatings } from './agreementController'
 import { BusinessProfile } from '../models/BusinessProfile'
 import { HireRequest } from '../models/HireRequest'
 import { Person } from '../models/Person'
@@ -34,8 +35,11 @@ async function withContacts(hires: HireDoc[], side: 'talent' | 'business') {
   const ids = accepted.map((h) => (side === 'talent' ? h.business : h.talent))
   const users = await User.find({ _id: { $in: ids } }).select('name email')
   const byId = new Map(users.map((u) => [String(u._id), u]))
+  // Talent ko: is business ko pichle talents ne kitni rating di
+  const ratings = side === 'talent' ? await businessRatings(list.map((h) => h.business)) : null
 
   return list.map((hire) => {
+    if (ratings) hire.businessRating = ratings.get(String(hire.business)) ?? null
     const phone = hire.businessProfile?.contactPhone
     if (hire.businessProfile) delete hire.businessProfile.contactPhone
     if (hire.status !== 'accepted') return hire

@@ -1,6 +1,11 @@
 import { Router } from 'express'
 import { adminGetClaim } from '../controllers/adminClaimDetailController'
 import {
+  adminGetAgreement,
+  adminListAgreements,
+  adminResolveDispute,
+} from '../controllers/agreementController'
+import {
   adminGetBusiness,
   adminListBusinesses,
   adminResetBusinessOtp,
@@ -45,6 +50,10 @@ router.post('/businesses/:id/code', adminSendBusinessCode)
 router.post('/businesses/:id/reset-otp', adminResetBusinessOtp)
 router.post('/businesses/:id/verify-manual', adminVerifyBusinessManually)
 router.patch('/businesses/:id', adminReviewBusiness)
+
+router.get('/agreements', adminListAgreements)
+router.get('/agreements/:id', adminGetAgreement)
+router.post('/agreements/:id/resolve', adminResolveDispute)
 
 router.get('/audit-logs', adminListAuditLogs)
 

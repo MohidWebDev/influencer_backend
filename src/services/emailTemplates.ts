@@ -63,3 +63,31 @@ The password for your ${env.platformName} account was just reset. You've been si
 If this wasn't you, reset your password right away: ${env.clientUrl}/forgot-password`
   return { to, subject, html, text }
 }
+
+// Muahide pe sign karne ka code
+export function agreementSignCodeEmail(
+  to: string,
+  name: string,
+  code: string,
+  title: string,
+  minutes: number,
+): MailMessage {
+  const subject = `${code} is your code to sign "${title}"`
+  const html = layout(
+    subject,
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;">Sign your agreement</h1>
+<p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:#4b5563;">Hi ${escapeHtml(name)}, enter this code to sign the agreement <strong>${escapeHtml(title)}</strong> on ${escapeHtml(env.platformName)}:</p>
+<div style="margin:0 0 24px;padding:20px;border-radius:12px;background:#f9fafb;border:1px solid #e5e7eb;text-align:center;">
+<span style="font-family:'SFMono-Regular',Menlo,Consolas,monospace;font-size:34px;font-weight:700;letter-spacing:10px;color:#111827;">${code}</span>
+</div>
+<p style="margin:0 0 8px;font-size:14px;line-height:1.6;color:#4b5563;">This code expires in <strong>${minutes} minutes</strong>. Entering it is your electronic signature on the version of the agreement you are looking at.</p>
+<p style="margin:0;font-size:14px;line-height:1.6;color:#4b5563;">Didn't ask for this? Ignore this email and never share the code with anyone.</p>`,
+  )
+  const text = `Hi ${name},
+
+Your code to sign the agreement "${title}" on ${env.platformName} is: ${code}
+
+It expires in ${minutes} minutes. Entering it is your electronic signature on that version of the agreement.
+Didn't ask for this? Ignore this email and never share the code.`
+  return { to, subject, html, text }
+}
