@@ -4,6 +4,7 @@ import {
   OPEN_CLAIM_STATUSES,
   ProfileClaim,
 } from '../models/ProfileClaim'
+import { NEEDS_ACTION_BUSINESS_STATUSES } from '../constants/business'
 import { BusinessProfile } from '../models/BusinessProfile'
 import { Report } from '../models/Report'
 import { User } from '../models/User'
@@ -20,7 +21,7 @@ export async function adminGetStats(_req: Request, res: Response) {
     claimsOpen,
     reportsOpen,
     reportsReviewing,
-    businessesPending,
+    businessesNeedAction,
     businessesApproved,
   ] =
     await Promise.all([
@@ -31,7 +32,7 @@ export async function adminGetStats(_req: Request, res: Response) {
       ProfileClaim.countDocuments({ status: { $in: OPEN_CLAIM_STATUSES } }),
       Report.countDocuments({ status: 'open' }),
       Report.countDocuments({ status: 'reviewing' }),
-      BusinessProfile.countDocuments({ status: 'pending' }),
+      BusinessProfile.countDocuments({ status: { $in: NEEDS_ACTION_BUSINESS_STATUSES } }),
       BusinessProfile.countDocuments({ status: 'approved' }),
     ])
 
@@ -43,6 +44,6 @@ export async function adminGetStats(_req: Request, res: Response) {
     users: { total: totalUsers, suspended, byRole },
     claims: { needsAction: claimsNeedAction, open: claimsOpen },
     reports: { open: reportsOpen, reviewing: reportsReviewing },
-    businesses: { pending: businessesPending, approved: businessesApproved },
+    businesses: { needsAction: businessesNeedAction, approved: businessesApproved },
   })
 }

@@ -58,8 +58,25 @@ export const reviewBusinessSchema = z.object({
   reason: z.string().trim().max(500).optional(),
 })
 
+export const sendBusinessCodeSchema = z.object({
+  channel: z.string().trim().min(1, 'Choose where to send the code'),
+})
+
+// Reset: raabta optional, na ho to pichla
+export const resetBusinessOtpSchema = z.object({
+  channel: z.string().trim().min(1).optional(),
+})
+
+export const verifyBusinessCodeSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'Enter the 6-digit code'),
+})
+
 export const adminListBusinessesQuerySchema = z.object({
-  status: z.enum(BUSINESS_STATUSES).optional(),
+  // open = tasdeeq chal rahi hai, needs_action = admin ko kuch karna hai
+  status: z.enum([...BUSINESS_STATUSES, 'open', 'needs_action']).optional(),
   q: z.string().trim().max(100).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),

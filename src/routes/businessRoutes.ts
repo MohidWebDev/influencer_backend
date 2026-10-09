@@ -1,5 +1,9 @@
 import { Router } from 'express'
-import { getMyBusiness, saveMyBusiness } from '../controllers/businessController'
+import {
+  getMyBusiness,
+  saveMyBusiness,
+  verifyMyBusinessCode,
+} from '../controllers/businessController'
 import { cancelHire, createHire, listMyHires } from '../controllers/hireController'
 import { requireAuth } from '../middlewares/requireAuth'
 import { requireRole } from '../middlewares/requireRole'
@@ -11,6 +15,8 @@ const router = Router()
 router.use(requireAuth, requireRole('business'))
 router.get('/profile', getMyBusiness)
 router.put('/profile', saveMyBusiness)
+// Admin ka bheja hua code (OTP)
+router.post('/profile/verify', verifyMyBusinessCode)
 router.get('/hires', listMyHires)
 // Hire sirf admin se verified business kar sakta hai
 router.post('/hires', requireVerifiedBusiness, createHire)
