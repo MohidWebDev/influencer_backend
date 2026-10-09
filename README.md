@@ -181,9 +181,9 @@ The code can be sent to the business's login email, website, any proof link or c
 | PUT | `/api/business/profile` | business | body `companyName, websiteUrl, country (2 letters), industry?, companySize? (1-10, 11-50, 51-200, 201-1000, 1000+), description?, registrationNumber?, city?, contactPhone?, proofLinks[]? (max 5)`. First save creates it as `pending` (201). Small edits keep the current status. Changing `companyName, registrationNumber, websiteUrl` or `country`, or saving after a rejection, starts verification again from `pending` (an approved business loses hiring until it is verified again) |
 | POST | `/api/business/profile/verify` | business | body `code`. Wrong code: 400 `INVALID_CODE` with `details.attemptsLeft`. 5th wrong code or any try after: 423 `OTP_LOCKED`. No code sent: 409 `NO_ACTIVE_CODE`. Expired: 410 `CODE_EXPIRED` |
 | POST | `/api/business/hires` | approved business | body `personId, title, message (min 20), serviceId?, budget? { amount, currency }, startDate?`. Not approved: 403 `BUSINESS_NOT_VERIFIED`. Talent not verified / unclaimed: 403 `TALENT_NOT_VERIFIED`. One pending request per talent (409 `HIRE_PENDING`). `serviceId` must be one of the talent's active services |
-| GET | `/api/business/hires` | business | my hire requests, newest first |
+| GET | `/api/business/hires` | business | my hire requests, newest first. An `accepted` request carries `contact { name, email }` of the talent |
 | POST | `/api/business/hires/:id/cancel` | business | cancel a `pending` request |
-| GET | `/api/me/hire-requests` | talent | requests sent to me, with the business details |
+| GET | `/api/me/hire-requests` | talent | requests sent to me, with the business details. An `accepted` request carries `contact { name, email, phone, websiteUrl }` of the business. Contact details (including the business phone) stay hidden until the talent accepts |
 | PATCH | `/api/me/hire-requests/:id` | talent | body `action: accept / decline, note?`. Only from `pending` |
 | GET | `/api/admin/businesses?status=&q=&page=&limit=` | admin | `status`: one status, `open` or `needs_action` (pending, otp_failed, code_verified). Open ones oldest first |
 | GET | `/api/admin/businesses/:id` | admin | `{ business, channels, history }` |

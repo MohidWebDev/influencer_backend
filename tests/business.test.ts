@@ -207,7 +207,7 @@ describe('hiring', () => {
   })
 
   it('sends a request, blocks duplicates, and the talent accepts it', async () => {
-    const { agent } = await verifiedBusiness()
+    const { agent, user } = await verifiedBusiness()
     const talent = await verifiedTalent()
 
     const sent = await agent.post('/api/business/hires').send(hireBody(String(talent.person._id)))
@@ -222,6 +222,10 @@ describe('hiring', () => {
     const inbox = await talent.agent.get('/api/me/hire-requests')
     expect(inbox.body.data.hires).toHaveLength(1)
     expect(inbox.body.data.hires[0].businessProfile.companyName).toBe('Acme Foods')
+    // Accept se pehle koi raabta nahi: na phone, na email
+    expect(inbox.body.data.hires[0].businessProfile.contactPhone).toBeUndefined()
+    expect(inbox.body.data.hires[0].contact).toBeUndefined()
+    expect((await agent.get('/api/business/hires')).body.data.hires[0].contact).toBeUndefined()
     const talentNotes = await talent.agent.get('/api/notifications')
     expect(talentNotes.body.data.notifications[0].type).toBe('hire.new')
 
@@ -229,12 +233,20 @@ describe('hiring', () => {
       .patch(`/api/me/hire-requests/${sent.body.data.hire._id}`)
       .send({ action: 'accept', note: 'Happy to help' })
     expect(accepted.body.data.hire.status).toBe('accepted')
+    // Accept ke baad dono ko ek doosre ka raabta
+    expect(accepted.body.data.hire.contact).toEqual({
+      name: user.name,
+      email: user.email,
+      phone: company.contactPhone,
+      websiteUrl: company.websiteUrl,
+    })
     expect(
       (await talent.agent.patch(`/api/me/hire-requests/${sent.body.data.hire._id}`).send({ action: 'decline' })).status,
     ).toBe(409)
 
     const mine = await agent.get('/api/business/hires')
     expect(mine.body.data.hires[0].status).toBe('accepted')
+    expect(mine.body.data.hires[0].contact).toEqual({ name: talent.user.name, email: talent.user.email })
     expect((await agent.get('/api/notifications')).body.data.notifications[0].type).toBe('hire.accepted')
   })
 

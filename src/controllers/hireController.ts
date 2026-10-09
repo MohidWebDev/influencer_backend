@@ -4,6 +4,7 @@ import '../types/express'
 import { BusinessProfile } from '../models/BusinessProfile'
 import { HireRequest } from '../models/HireRequest'
 import { Person } from '../models/Person'
+import { User } from '../models/User'
 import { notifyUser } from '../services/notificationService'
 import { AppError } from '../utils/AppError'
 import { sendSuccess } from '../utils/apiResponse'
@@ -13,7 +14,39 @@ import { createHireSchema, respondHireSchema } from '../validators/businessValid
 const PERSON_POPULATE = { path: 'person', select: 'name slug headline photoUrl verified' }
 const BUSINESS_POPULATE = {
   path: 'businessProfile',
-  select: 'companyName websiteUrl industry country city status',
+  select: 'companyName websiteUrl industry companySize description country city status contactPhone',
+}
+
+type HireDoc = Awaited<ReturnType<typeof HireRequest.findOne>> & {}
+type HireJson = Record<string, unknown> & {
+  status: string
+  business: unknown
+  talent: unknown
+  businessProfile?: { contactPhone?: string; websiteUrl?: string } | null
+}
+
+// Accept ke baad hi raabte ki maloomat dono taraf khulti hai:
+// talent ko business ka banda, email, phone, website; business ko talent ka naam aur email.
+// Us se pehle phone bhi chhupa rehta hai
+async function withContacts(hires: HireDoc[], side: 'talent' | 'business') {
+  const list = hires.map((hire) => hire.toJSON() as unknown as HireJson)
+  const accepted = list.filter((h) => h.status === 'accepted')
+  const ids = accepted.map((h) => (side === 'talent' ? h.business : h.talent))
+  const users = await User.find({ _id: { $in: ids } }).select('name email')
+  const byId = new Map(users.map((u) => [String(u._id), u]))
+
+  return list.map((hire) => {
+    const phone = hire.businessProfile?.contactPhone
+    if (hire.businessProfile) delete hire.businessProfile.contactPhone
+    if (hire.status !== 'accepted') return hire
+    const user = byId.get(String(side === 'talent' ? hire.business : hire.talent))
+    if (!user) return hire
+    hire.contact =
+      side === 'talent'
+        ? { name: user.name, email: user.email, phone, websiteUrl: hire.businessProfile?.websiteUrl }
+        : { name: user.name, email: user.email }
+    return hire
+  })
 }
 
 async function findHire(id: string, owner: { business?: string; talent?: string }) {
@@ -69,7 +102,8 @@ export async function createHire(req: Request, res: Response) {
   })
 
   await hire.populate([PERSON_POPULATE, BUSINESS_POPULATE])
-  sendSuccess(res, { hire }, 201)
+  const [json] = await withContacts([hire], 'business')
+  sendSuccess(res, { hire: json }, 201)
 }
 
 // GET /api/business/hires -> meri bheji hui requests, naye pehle
@@ -78,7 +112,7 @@ export async function listMyHires(req: Request, res: Response) {
     .populate(PERSON_POPULATE)
     .sort({ createdAt: -1 })
     .limit(100)
-  sendSuccess(res, { hires })
+  sendSuccess(res, { hires: await withContacts(hires, 'business') })
 }
 
 // POST /api/business/hires/:id/cancel -> jawab aane se pehle wapas lo
@@ -100,7 +134,8 @@ export async function cancelHire(req: Request, res: Response) {
     data: { business: data.businessProfile?.companyName, person: data.person?.name },
     link: '/dashboard',
   })
-  sendSuccess(res, { hire })
+  const [json] = await withContacts([hire], 'business')
+  sendSuccess(res, { hire: json })
 }
 
 // GET /api/me/hire-requests -> talent ko aayi hui requests, naye pehle
@@ -109,7 +144,7 @@ export async function listIncomingHires(req: Request, res: Response) {
     .populate([PERSON_POPULATE, BUSINESS_POPULATE])
     .sort({ createdAt: -1 })
     .limit(100)
-  sendSuccess(res, { hires })
+  sendSuccess(res, { hires: await withContacts(hires, 'talent') })
 }
 
 // PATCH /api/me/hire-requests/:id -> talent accept ya decline kare
@@ -133,5 +168,6 @@ export async function respondHire(req: Request, res: Response) {
     data: { person },
     link: '/dashboard',
   })
-  sendSuccess(res, { hire })
+  const [json] = await withContacts([hire], 'talent')
+  sendSuccess(res, { hire: json })
 }
