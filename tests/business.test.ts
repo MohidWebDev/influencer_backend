@@ -29,12 +29,16 @@ const hireBody = (personId: string) => ({
   budget: { amount: 150000, currency: 'PKR' },
 })
 
+// Poora raasta: details -> admin code bhejta hai -> business code daalta hai -> admin approve
 async function verifiedBusiness() {
   const business = await loginAs(app, 'business')
   const created = await business.agent.put('/api/business/profile').send(company)
+  const businessId = created.body.data.business._id as string
   const { agent: admin } = await loginAs(app, 'admin')
-  await admin.patch(`/api/admin/businesses/${created.body.data.business._id}`).send({ action: 'approve' })
-  return { ...business, businessId: created.body.data.business._id as string, admin }
+  const sent = await admin.post(`/api/admin/businesses/${businessId}/code`).send({ channel: company.websiteUrl })
+  await business.agent.post('/api/business/profile/verify').send({ code: sent.body.data.code })
+  await admin.patch(`/api/admin/businesses/${businessId}`).send({ action: 'approve' })
+  return { ...business, businessId, admin }
 }
 
 async function verifiedTalent() {
@@ -50,9 +54,9 @@ describe('business verification', () => {
     expect((await request(app).get('/api/business/profile')).status).toBe(401)
   })
 
-  it('submits details for review, notifies admins, and the admin approves', async () => {
+  it('runs the code flow: send code, business enters it, admin approves', async () => {
     const { agent: admin } = await loginAs(app, 'admin')
-    const { agent } = await loginAs(app, 'business')
+    const { agent, user } = await loginAs(app, 'business')
 
     expect((await agent.get('/api/business/profile')).body.data.business).toBeNull()
 
@@ -69,10 +73,41 @@ describe('business verification', () => {
     const notes = await admin.get('/api/notifications')
     expect(notes.body.data.notifications[0].type).toBe('business.new')
     expect(notes.body.data.notifications[0].link).toBe(`/admin/businesses/${business._id}`)
-
-    const queue = await admin.get('/api/admin/businesses?status=pending')
+    expect((await admin.get('/api/admin/stats')).body.data.businesses.needsAction).toBeGreaterThan(0)
+    const queue = await admin.get('/api/admin/businesses?status=needs_action')
     expect(queue.body.data.businesses.map((b: { _id: string }) => b._id)).toContain(business._id)
-    expect((await admin.get('/api/admin/stats')).body.data.businesses.pending).toBeGreaterThan(0)
+
+    // Approve sirf sahi code ke baad
+    const early = await admin.patch(`/api/admin/businesses/${business._id}`).send({ action: 'approve' })
+    expect(early.status).toBe(409)
+    expect(early.body.error.code).toBe('BUSINESS_CODE_NOT_VERIFIED')
+
+    const detail = await admin.get(`/api/admin/businesses/${business._id}`)
+    expect(detail.body.data.channels).toEqual(
+      expect.arrayContaining([user.email, company.websiteUrl, company.contactPhone, ...company.proofLinks]),
+    )
+    const badChannel = await admin.post(`/api/admin/businesses/${business._id}/code`).send({ channel: 'https://evil.example.com' })
+    expect(badChannel.status).toBe(400)
+
+    const sent = await admin.post(`/api/admin/businesses/${business._id}/code`).send({ channel: user.email })
+    expect(sent.status).toBe(200)
+    expect(sent.body.data.code).toMatch(/^\d{6}$/)
+    expect(sent.body.data.business.status).toBe('waiting_for_business')
+    expect(sent.body.data.business.verification.codeHash).toBeUndefined()
+
+    const mine = await agent.get('/api/business/profile')
+    expect(mine.body.data.business.verification.channel).toBe(user.email)
+    expect(mine.body.data.business.verification.codeHash).toBeUndefined()
+    expect((await agent.get('/api/notifications')).body.data.notifications[0].type).toBe('business.code_sent')
+
+    const wrong = await agent.post('/api/business/profile/verify').send({ code: sent.body.data.code === '000000' ? '111111' : '000000' })
+    expect(wrong.status).toBe(400)
+    expect(wrong.body.error.details.attemptsLeft).toBe(4)
+
+    const right = await agent.post('/api/business/profile/verify').send({ code: sent.body.data.code })
+    expect(right.status).toBe(200)
+    expect(right.body.data.business.status).toBe('code_verified')
+    expect((await admin.get('/api/notifications')).body.data.notifications[0].type).toBe('business.code_verified')
 
     const approved = await admin.patch(`/api/admin/businesses/${business._id}`).send({ action: 'approve' })
     expect(approved.status).toBe(200)
@@ -81,17 +116,45 @@ describe('business verification', () => {
       (await admin.patch(`/api/admin/businesses/${business._id}`).send({ action: 'approve' })).status,
     ).toBe(409)
 
-    const detail = await admin.get(`/api/admin/businesses/${business._id}`)
-    expect(detail.body.data.history[0].action).toBe('business.approve')
+    const history = (await admin.get(`/api/admin/businesses/${business._id}`)).body.data.history
+    expect(history.map((h: { action: string }) => h.action)).toEqual(['business.approve', 'business.send_code'])
+    expect((await agent.get('/api/notifications')).body.data.notifications[0].type).toBe('business.approved')
+  })
 
-    const mine = await agent.get('/api/notifications')
-    expect(mine.body.data.notifications[0].type).toBe('business.approved')
+  it('locks after 5 wrong codes; the admin can reset or verify manually', async () => {
+    const { agent: admin } = await loginAs(app, 'admin')
+    const { agent } = await loginAs(app, 'business')
+    const id = (await agent.put('/api/business/profile').send(company)).body.data.business._id
+    expect((await agent.post('/api/business/profile/verify').send({ code: '123456' })).body.error.code).toBe('NO_ACTIVE_CODE')
+
+    const sent = await admin.post(`/api/admin/businesses/${id}/code`).send({ channel: company.websiteUrl })
+    const wrongCode = sent.body.data.code === '000000' ? '111111' : '000000'
+    for (let i = 0; i < 4; i++) {
+      expect((await agent.post('/api/business/profile/verify').send({ code: wrongCode })).status).toBe(400)
+    }
+    const locked = await agent.post('/api/business/profile/verify').send({ code: wrongCode })
+    expect(locked.status).toBe(423)
+    expect(locked.body.error.code).toBe('OTP_LOCKED')
+    // Lock ke baad sahi code bhi nahi chalta
+    expect((await agent.post('/api/business/profile/verify').send({ code: sent.body.data.code })).status).toBe(423)
+    expect((await admin.get('/api/notifications')).body.data.notifications[0].type).toBe('business.otp_locked')
+
+    const reset = await admin.post(`/api/admin/businesses/${id}/reset-otp`).send({})
+    expect(reset.body.data.business.status).toBe('waiting_for_business')
+    expect(reset.body.data.business.otpAttempts).toBe(0)
+    expect(reset.body.data.business.verification.channel).toBe(company.websiteUrl)
+
+    const manual = await admin.post(`/api/admin/businesses/${id}/verify-manual`)
+    expect(manual.status).toBe(200)
+    expect(manual.body.data.business.status).toBe('approved')
+    expect(manual.body.data.business.verificationMethod).toBe('admin_manual')
   })
 
   it('rejects with a reason and goes back to pending when resubmitted', async () => {
     const { agent: admin } = await loginAs(app, 'admin')
     const { agent } = await loginAs(app, 'business')
     const id = (await agent.put('/api/business/profile').send(company)).body.data.business._id
+    await admin.post(`/api/admin/businesses/${id}/code`).send({ channel: company.websiteUrl })
 
     const rejected = await admin
       .patch(`/api/admin/businesses/${id}`)
@@ -103,6 +166,7 @@ describe('business verification', () => {
     expect(again.status).toBe(200)
     expect(again.body.data.business.status).toBe('pending')
     expect(again.body.data.business.rejectionReason).toBeUndefined()
+    expect(again.body.data.business.verification.channel).toBeUndefined()
   })
 
   it('keeps an approved business verified for small edits but re-reviews identity changes', async () => {
@@ -122,9 +186,16 @@ describe('hiring', () => {
     expect(none.status).toBe(403)
     expect(none.body.error.code).toBe('BUSINESS_NOT_VERIFIED')
 
-    await agent.put('/api/business/profile').send(company)
+    const id = (await agent.put('/api/business/profile').send(company)).body.data.business._id
     const pending = await agent.post('/api/business/hires').send(hireBody(String(person._id)))
     expect(pending.body.error.code).toBe('BUSINESS_NOT_VERIFIED')
+
+    // Sahi code daal diya lekin admin ne abhi approve nahi kiya
+    const { agent: admin } = await loginAs(app, 'admin')
+    const sent = await admin.post(`/api/admin/businesses/${id}/code`).send({ channel: company.websiteUrl })
+    await agent.post('/api/business/profile/verify').send({ code: sent.body.data.code })
+    const codeOnly = await agent.post('/api/business/hires').send(hireBody(String(person._id)))
+    expect(codeOnly.body.error.code).toBe('BUSINESS_NOT_VERIFIED')
   })
 
   it('only allows hiring verified talents', async () => {

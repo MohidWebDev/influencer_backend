@@ -9,6 +9,8 @@ export const NOTIFICATION_TYPES = [
   'claim.otp_locked',
   'report.new',
   'business.new',
+  'business.code_verified',
+  'business.otp_locked',
   // Talent ke liye
   'claim.code_sent',
   'claim.approved',
@@ -16,6 +18,7 @@ export const NOTIFICATION_TYPES = [
   'hire.new',
   'hire.cancelled',
   // Business ke liye
+  'business.code_sent',
   'business.approved',
   'business.rejected',
   'hire.accepted',

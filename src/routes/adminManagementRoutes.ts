@@ -3,7 +3,10 @@ import { adminGetClaim } from '../controllers/adminClaimDetailController'
 import {
   adminGetBusiness,
   adminListBusinesses,
+  adminResetBusinessOtp,
   adminReviewBusiness,
+  adminSendBusinessCode,
+  adminVerifyBusinessManually,
 } from '../controllers/businessController'
 import {
   adminGetReport,
@@ -38,6 +41,9 @@ router.patch('/reports/:id', adminUpdateReport)
 
 router.get('/businesses', adminListBusinesses)
 router.get('/businesses/:id', adminGetBusiness)
+router.post('/businesses/:id/code', adminSendBusinessCode)
+router.post('/businesses/:id/reset-otp', adminResetBusinessOtp)
+router.post('/businesses/:id/verify-manual', adminVerifyBusinessManually)
 router.patch('/businesses/:id', adminReviewBusiness)
 
 router.get('/audit-logs', adminListAuditLogs)

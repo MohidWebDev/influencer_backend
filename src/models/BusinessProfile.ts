@@ -1,8 +1,18 @@
 import { Schema, model, type Types } from 'mongoose'
 import { BUSINESS_STATUSES, COMPANY_SIZES, type BusinessStatus } from '../constants/business'
+import { VERIFICATION_METHODS, type VerificationMethod } from './ProfileClaim'
 
-// Business account ki company details. Admin approve kare to business "verified"
-// aur sirf tab woh verified talents ko hire kar sakta hai
+export interface IBusinessVerification {
+  // Kis raabte pe code bheja gaya (account email, website, proof link ya phone)
+  channel?: string
+  // Code kabhi seedha save nahi hota, sirf hash
+  codeHash?: string
+  codeSentAt?: Date
+  expiresAt?: Date
+}
+
+// Business account ki company details. Admin code bhejta hai, business code daalta hai,
+// phir admin approve kare to business "verified" aur sirf tab woh verified talents ko hire kar sakta hai
 export interface IBusinessProfile {
   owner: Types.ObjectId
   companyName: string
@@ -17,6 +27,15 @@ export interface IBusinessProfile {
   // Tasdeeq ke liye links (LinkedIn page, registration certificate, press waghera)
   proofLinks: string[]
   status: BusinessStatus
+  verification: IBusinessVerification
+  // OTP ki ghalat koshishein (5 pe lock)
+  otpAttempts: number
+  otpLockedAt?: Date
+  lastOtpAttemptAt?: Date
+  // Kab, kisne aur kaise tasdeeq hui. verifiedBy null = business ne OTP se khud kiya
+  verifiedAt?: Date
+  verifiedBy?: Types.ObjectId | null
+  verificationMethod?: VerificationMethod
   submittedAt: Date
   reviewedBy?: Types.ObjectId
   reviewedAt?: Date
@@ -39,6 +58,18 @@ const businessProfileSchema = new Schema<IBusinessProfile>(
     contactPhone: { type: String, trim: true, maxlength: 30 },
     proofLinks: { type: [String], default: [] },
     status: { type: String, enum: BUSINESS_STATUSES, default: 'pending' },
+    verification: {
+      channel: { type: String, trim: true },
+      codeHash: { type: String, select: false },
+      codeSentAt: { type: Date },
+      expiresAt: { type: Date },
+    },
+    otpAttempts: { type: Number, default: 0 },
+    otpLockedAt: { type: Date },
+    lastOtpAttemptAt: { type: Date },
+    verifiedAt: { type: Date },
+    verifiedBy: { type: Schema.Types.ObjectId, ref: 'User', default: undefined },
+    verificationMethod: { type: String, enum: VERIFICATION_METHODS },
     submittedAt: { type: Date, default: Date.now },
     reviewedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     reviewedAt: { type: Date },
@@ -50,6 +81,8 @@ const businessProfileSchema = new Schema<IBusinessProfile>(
     toJSON: {
       transform: (_doc, ret: Record<string, unknown>) => {
         delete ret.__v
+        const verification = ret.verification as { codeHash?: string } | undefined
+        if (verification) delete verification.codeHash
         return ret
       },
     },
