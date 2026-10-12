@@ -123,4 +123,12 @@ describe('forgot password', () => {
     const res = await request(app).post('/api/auth/forgot-password/verify').send({ email: user.email, code: codeFor(user.email) })
     expect(res.body.error.code).toBe('CODE_EXPIRED')
   })
+
+  it('sends a browser that opens the API address to the frontend page', async () => {
+    for (const path of ['/api/auth/forgot-password', '/api/auth/reset-password']) {
+      const res = await request(app).get(path)
+      expect(res.status).toBe(302)
+      expect(res.headers.location).toMatch(/\/forgot-password$/)
+    }
+  })
 })
