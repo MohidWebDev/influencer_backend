@@ -18,7 +18,18 @@ function getTransporter() {
       port: env.smtpPort,
       // 465 = seedha TLS, 587 = STARTTLS
       secure: env.smtpPort === 465,
-      auth: env.smtpUser ? { user: env.smtpUser, pass: env.smtpPass } : undefined,
+      // Gmail App Password "abcd efgh ijkl mnop" spaces ke saath copy hota hai
+      auth: env.smtpUser
+        ? {
+            user: env.smtpUser,
+            pass: env.smtpHost.includes('gmail') ? env.smtpPass.replace(/\s+/g, '') : env.smtpPass,
+          }
+        : undefined,
+      // Vercel function zyada der nahi chalta: SMTP atke to jaldi saaf error do
+      // (nodemailer khud 2 minute ruk jata hai aur user ko sirf 504 milta)
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
     })
   }
   return transporter

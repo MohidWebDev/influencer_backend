@@ -32,7 +32,7 @@ router.get(['/forgot-password', '/reset-password'], (_req, res) => {
 })
 router.post('/forgot-password/verify', verifyResetCode)
 router.post('/reset-password', resetPassword)
-router.get('/me', requireAuth, me)
+router.get('/me', me)
 router.patch('/password', requireAuth, changePassword)
 router.delete('/account', requireAuth, deleteAccount)
 

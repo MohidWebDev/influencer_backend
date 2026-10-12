@@ -67,7 +67,7 @@ Request -> app.ts -> routes -> middlewares -> controller -> model -> sendSuccess
 | POST | `/api/auth/login` | anyone | body: `email, password` |
 | POST | `/api/auth/refresh` | refresh cookie | new access + refresh tokens |
 | POST | `/api/auth/logout` | anyone | clears cookies, invalidates refresh tokens |
-| GET | `/api/auth/me` | logged in | current user |
+| GET | `/api/auth/me` | anyone | `{ user }`, or `{ user: null }` (200, not 401) when nobody is logged in. If only the refresh cookie is still valid it issues new cookies itself, so the app never needs a 401 + `/auth/refresh` round trip on load. Bad or old cookies are cleared |
 | PATCH | `/api/auth/password` | logged in | body `currentPassword, newPassword` (min 8, must differ). Wrong current password: 400 `WRONG_PASSWORD`. Logs out other devices; this device gets new cookies |
 | DELETE | `/api/auth/account` | logged in | body `confirm` = `delete <your name>` (case and extra spaces ignored), else 400 `CONFIRMATION_MISMATCH`; talents can add `removeProfile: true`. The last active admin cannot delete themselves (409 `LAST_ADMIN`); an `active` / `disputed` agreement blocks it (409 `ACTIVE_AGREEMENT`). Removes the user's claims, drafts, business details, hire requests and notifications; audit action `user.self_delete`. Response `profile` says what happened to an owned profile (see "Deleting a talent account") |
 | POST | `/api/auth/forgot-password` | public | body `email`. Emails a 6-digit code (valid 10 min). Always answers `{ sent: true, resendIn: 60 }`, so it never reveals whether an email is registered. A new code is sent at most once every 60 s; suspended accounts get nothing |
@@ -315,19 +315,11 @@ Create and edit use `POST /api/people` and `PATCH /api/people/:id`.
 
 Public GETs send `Cache-Control: public, max-age=0, must-revalidate` (the browser always checks) and `CDN-Cache-Control` so Vercel's CDN can answer for 60s (people) or 1h (taxonomy). Errors are `no-store`.
 
-## Deploying on Render
+## Deploying on Vercel
 
-`render.yaml` has the settings. For a service made in the Render dashboard use:
+The backend runs on Vercel as a serverless function (Vercel uses the app exported from `src/app.ts`; `src/server.ts` is only for local runs). The frontend's `vercel.json` rewrites `/api/*` to `https://influencer-backend.vercel.app/api/*`, so the browser only ever talks to the frontend domain and the auth cookies stay first-party. In MongoDB Atlas allow access from Vercel (Network Access, e.g. `0.0.0.0/0`).
 
-- **Build command:** `npm ci --include=dev && npm run build` (TypeScript compiles to `dist/`; `--include=dev` because `NODE_ENV=production` would skip TypeScript)
-- **Start command:** `npm start` (runs `node dist/server.js`, which listens on Render's `PORT`)
-- **Node version:** 22 (`engines` in `package.json`, or `NODE_VERSION=22`)
-- **Health check path:** `/api/health`
-- The environment variables below. In MongoDB Atlas, allow access from Render (Network Access, e.g. `0.0.0.0/0`).
-
-Then point the frontend's `vercel.json` `/api/*` rewrite at the Render URL.
-
-## Environment variables (Vercel / Render)
+## Environment variables on Vercel
 
 `NODE_ENV`, `CLIENT_URL`, `MONGO_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (see `.env.example`).
 

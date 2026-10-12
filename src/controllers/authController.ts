@@ -4,6 +4,7 @@ import { User, type UserDocument } from '../models/User'
 import { AppError } from '../utils/AppError'
 import { sendSuccess } from '../utils/apiResponse'
 import {
+  ACCESS_COOKIE,
   REFRESH_COOKIE,
   clearAuthCookies,
   setAuthCookies,
@@ -11,6 +12,7 @@ import {
 import {
   signAccessToken,
   signRefreshToken,
+  verifyAccessToken,
   verifyRefreshToken,
 } from '../utils/tokens'
 import { Agreement } from '../models/Agreement'
@@ -75,28 +77,27 @@ export async function login(req: Request, res: Response) {
 }
 
 // POST /api/auth/refresh -> access token expire ho jaye to naya lo
-export async function refresh(req: Request, res: Response) {
-  const token = req.cookies?.[REFRESH_COOKIE]
-
+// Refresh cookie sahi ho to wohi user (warna null)
+async function userFromRefreshToken(token?: string) {
+  if (!token) return null
   try {
-    if (!token) throw new Error('No refresh token')
     const payload = verifyRefreshToken(token)
     const user = await User.findById(payload.sub).select('+tokenVersion')
-
-    if (
-      !user ||
-      user.status !== 'active' ||
-      user.tokenVersion !== payload.tokenVersion
-    ) {
-      throw new Error('Refresh token no longer valid')
-    }
-
-    issueTokens(res, user)
-    sendSuccess(res, { user })
+    if (!user || user.status !== 'active' || user.tokenVersion !== payload.tokenVersion) return null
+    return user
   } catch {
+    return null
+  }
+}
+
+export async function refresh(req: Request, res: Response) {
+  const user = await userFromRefreshToken(req.cookies?.[REFRESH_COOKIE])
+  if (!user) {
     clearAuthCookies(res)
     throw new AppError(401, 'UNAUTHORIZED', 'Session expired, please log in again')
   }
+  issueTokens(res, user)
+  sendSuccess(res, { user })
 }
 
 // POST /api/auth/logout -> is user ke saare refresh tokens bekaar
@@ -117,13 +118,30 @@ export async function logout(req: Request, res: Response) {
 }
 
 // GET /api/auth/me -> abhi login kaun hai
+// GET /api/auth/me -> kaun login hai. Login nahi to 401 nahi, { user: null }:
+// app khulte hi ye chalta hai, aur mehman ke liye "login nahi" koi ghalti nahi.
+// Access token expire ho gaya ho magar refresh cookie sahi ho to yahin naye tokens,
+// taake browser pehle 401 phir /refresh ka chakkar na lagaye
 export async function me(req: Request, res: Response) {
-  const user = await User.findById(req.user!.id)
-  if (!user || user.status !== 'active') {
-    clearAuthCookies(res)
-    throw new AppError(401, 'UNAUTHORIZED', 'Please log in')
+  const accessToken = req.cookies?.[ACCESS_COOKIE]
+  if (accessToken) {
+    try {
+      const payload = verifyAccessToken(accessToken)
+      const user = await User.findById(payload.sub)
+      if (user && user.status === 'active') return sendSuccess(res, { user })
+    } catch {
+      // Expire: neeche refresh cookie se koshish
+    }
   }
-  sendSuccess(res, { user })
+
+  const user = await userFromRefreshToken(req.cookies?.[REFRESH_COOKIE])
+  if (user) {
+    issueTokens(res, user)
+    return sendSuccess(res, { user })
+  }
+  // Purani / ghalat cookies saaf, taake agli dafa bhi faltu koshish na ho
+  if (accessToken || req.cookies?.[REFRESH_COOKIE]) clearAuthCookies(res)
+  sendSuccess(res, { user: null })
 }
 
 // PATCH /api/auth/password -> purana password check, naya set.

@@ -34,6 +34,10 @@ describe('mailService (SMTP / nodemailer)', () => {
       port: 465,
       secure: true,
       auth: { user: 'bot@example.com', pass: 'secret' },
+      // Vercel function ke andar SMTP atke to jaldi error
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
     })
     expect(sendMail).toHaveBeenCalledWith({ from: 'Influence <hi@example.com>', ...message })
   })

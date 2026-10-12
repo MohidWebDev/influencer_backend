@@ -53,7 +53,10 @@ describe('delete account', () => {
     const freed = await Person.findById(person._id)
     expect(freed?.claimedBy).toBeNull()
     expect(freed?.verified).toBe(false)
-    expect((await agent.get('/api/auth/me')).status).toBe(401)
+    // Account gaya: ab koi login nahi
+    const me = await agent.get('/api/auth/me')
+    expect(me.status).toBe(200)
+    expect(me.body.data.user).toBeNull()
   })
 
   it('does not let the last active admin delete their account', async () => {
