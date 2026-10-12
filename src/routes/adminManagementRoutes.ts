@@ -19,6 +19,7 @@ import {
   adminUpdateReport,
 } from '../controllers/adminReportController'
 import { adminGetStats } from '../controllers/adminStatsController'
+import { adminGetManager, adminListManagers, adminReviewManager } from '../controllers/managerController'
 import {
   adminListUsers,
   adminUpdateUserRole,
@@ -50,6 +51,10 @@ router.post('/businesses/:id/code', adminSendBusinessCode)
 router.post('/businesses/:id/reset-otp', adminResetBusinessOtp)
 router.post('/businesses/:id/verify-manual', adminVerifyBusinessManually)
 router.patch('/businesses/:id', adminReviewBusiness)
+
+router.get('/managers', adminListManagers)
+router.get('/managers/:id', adminGetManager)
+router.patch('/managers/:id', adminReviewManager)
 
 router.get('/agreements', adminListAgreements)
 router.get('/agreements/:id', adminGetAgreement)

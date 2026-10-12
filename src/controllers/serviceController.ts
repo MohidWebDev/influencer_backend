@@ -3,6 +3,7 @@ import { isValidObjectId, type Types } from 'mongoose'
 import '../types/express'
 import { MAX_SERVICES } from '../constants/services'
 import { Person, type IService } from '../models/Person'
+import { resolveTalentActor } from '../services/representationService'
 import { AppError } from '../utils/AppError'
 import { sendSuccess } from '../utils/apiResponse'
 import { parseOrThrow } from '../utils/validation'
@@ -14,9 +15,11 @@ import {
 
 type PersonDoc = NonNullable<Awaited<ReturnType<typeof Person.findOne>>>
 
-// Talent ki apni (claimed) profile. Claim ke baghair services nahi ban sakti
+// Talent ki apni (claimed) profile, ya manager ke talent ki (?person=, "manageProfile" ijazat se).
+// Claim ke baghair services nahi ban sakti
 async function loadMyPerson(req: Request) {
-  const person = await Person.findOne({ claimedBy: req.user!.id })
+  const { talentId } = await resolveTalentActor(req, 'manageProfile')
+  const person = await Person.findOne({ claimedBy: talentId })
   if (!person) {
     throw new AppError(404, 'NO_PROFILE', 'Claim your profile first to add services')
   }

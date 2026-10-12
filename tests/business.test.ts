@@ -166,7 +166,7 @@ describe('business verification', () => {
     expect(again.status).toBe(200)
     expect(again.body.data.business.status).toBe('pending')
     expect(again.body.data.business.rejectionReason).toBeUndefined()
-    expect(again.body.data.business.verification.channel).toBeUndefined()
+    expect(again.body.data.business.verification?.channel).toBeUndefined()
   })
 
   it('keeps an approved business verified for small edits but re-reviews identity changes', async () => {

@@ -4,6 +4,8 @@ import agreementRoutes from './agreementRoutes'
 import authRoutes from './authRoutes'
 import businessRoutes from './businessRoutes'
 import claimRoutes from './claimRoutes'
+import managerRoutes from './managerRoutes'
+import myManagerRoutes from './myManagerRoutes'
 import notificationRoutes from './notificationRoutes'
 import reportRoutes from './reportRoutes'
 import peopleRoutes from './peopleRoutes'
@@ -21,7 +23,10 @@ router.use('/claims', claimRoutes)
 router.use('/reports', reportRoutes)
 router.use('/admin', adminRoutes)
 router.use('/notifications', notificationRoutes)
+// /me/manager pehle, warna /me wale talent routes us ko le lete
+router.use('/me/manager', myManagerRoutes)
 router.use('/me', serviceRoutes)
+router.use('/manager', managerRoutes)
 router.use('/business', businessRoutes)
 router.use('/agreements', agreementRoutes)
 router.use('/shortlists', shortlistRoutes)

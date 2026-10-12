@@ -1,15 +1,18 @@
 import type { Request, Response } from 'express'
-import { isValidObjectId, type QueryFilter } from 'mongoose'
+import { isValidObjectId, type QueryFilter, type Types } from 'mongoose'
 import '../types/express'
+import { ManagerProfile } from '../models/ManagerProfile'
 import { Person, type IPerson } from '../models/Person'
 import { PersonPhoto } from '../models/PersonPhoto'
 import { ProfileClaim } from '../models/ProfileClaim'
 import { ProfileRemoval } from '../models/ProfileRemoval'
 import { Industry, Profession, Topic } from '../models/taxonomy'
+import { User } from '../models/User'
 import {
   generateUniquePersonSlug,
   resolveTaxonomySlugs,
 } from '../services/personService'
+import { activeRepresentation, canManageProfile } from '../services/representationService'
 import { AppError } from '../utils/AppError'
 import { sendSuccess } from '../utils/apiResponse'
 import { parseOrThrow } from '../utils/validation'
@@ -118,7 +121,18 @@ export async function getPersonBySlug(req: Request, res: Response) {
   // Public ko sirf chalti (active) services
   const json = person.toJSON() as unknown as Record<string, unknown>
   json.services = person.services.filter((service) => service.isActive)
+  json.representedBy = await representedBy(person._id)
   sendSuccess(res, { person: json })
+}
+
+// "Represented by": talent ka verified manager (naam aur agency), warna null
+async function representedBy(personId: Types.ObjectId) {
+  const rep = await activeRepresentation(personId)
+  if (!rep) return null
+  const profile = await ManagerProfile.findOne({ owner: rep.manager, status: 'approved' }).select('agencyName')
+  if (!profile) return null
+  const manager = await User.findById(rep.manager).select('name')
+  return manager ? { name: manager.name, agencyName: profile.agencyName ?? null } : null
 }
 
 // GET /api/people/photos/:id -> profile photo ki file. Id har nayi photo pe badalti hai,
@@ -180,7 +194,10 @@ export async function updatePerson(req: Request, res: Response) {
 
   const user = req.user!
   const isAdmin = user.role === 'admin'
-  const isOwner = person.claimedBy?.toString() === user.id
+  // Manager bhi, agar talent ne "manageProfile" ki ijazat di ho (owner jaisa hi)
+  const isOwner =
+    person.claimedBy?.toString() === user.id ||
+    (user.role === 'representative' && (await canManageProfile(user.id, id)))
   if (!isAdmin && !isOwner) {
     throw new AppError(403, 'FORBIDDEN', 'You can only edit your own profile')
   }

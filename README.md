@@ -244,6 +244,27 @@ Talent hire requests also carry `businessRating { average, count }` (what talent
 
 Escrow (holding the payment until milestones are approved) is planned for later; the milestones and signed amounts are already in place for it.
 
+## Manager endpoints (representative accounts)
+
+A manager / agent sends their details, an admin approves them, and then they can link to talents. **Every link needs the talent's consent**, a talent has **one manager at a time**, and the talent chooses what the manager may do: `manageProfile` (profile, services, availability) and / or `handleHires` (answer hire requests). Signing agreements on a talent's behalf is not possible yet.
+
+| Method | URL | Who | What |
+|---|---|---|---|
+| GET / PUT | `/api/manager/profile` | representative | own details: `websiteUrl` (website or LinkedIn), `country` required; `agencyName, city, contactPhone, bio, talentsCount, proofLinks`. New, rejected or identity changes (`agencyName, websiteUrl, country`) go to `pending` |
+| GET | `/api/manager/representations` | representative | invites, requests and past links |
+| POST | `/api/manager/representations` | verified manager | body `personId, message`: ask to represent a claimed talent. 409 `HAS_MANAGER` / `ALREADY_PENDING`, 403 `MANAGER_NOT_VERIFIED` |
+| POST | `/api/manager/representations/:id/respond` | representative | body `action` (`accept` / `decline`) a talent's invite |
+| POST | `/api/manager/representations/:id/end` | representative | end a link, or withdraw a request |
+| GET | `/api/manager/talents` | representative | roster: each talent with permissions, pending hire requests and open agreements |
+| GET | `/api/manager/talents/:personId` | representative | one talent's full profile (for editing) and the permissions |
+| GET | `/api/me/manager` | talent | `active`, `pending`, `history` |
+| POST | `/api/me/manager/invite` | talent | body `email, message, permissions`: invite a verified manager by their login email |
+| POST | `/api/me/manager/:id/respond` | talent | body `action, permissions` for a manager's request |
+| PATCH | `/api/me/manager/:id` | talent | body `permissions` |
+| POST | `/api/me/manager/:id/end` | talent | end the link, or withdraw an invite |
+
+Acting for a talent: the talent endpoints under `/api/me` (services, availability, hire requests) accept `?person=<profile id>` from a manager with the right permission; `GET /api/me/hire-requests` without it gives the manager one inbox for all their talents. `PATCH /api/people/:id` works for a manager with `manageProfile`. Hire answers record `respondedBy`, and the talent is notified. Public profiles show `representedBy` (`name, agencyName`). Admin: `GET /api/admin/managers` (`status, q, page, limit`), `GET /api/admin/managers/:id`, `PATCH /api/admin/managers/:id` (`action, reason`); rejecting a verified manager ends all their links. Deleting either account removes its links.
+
 ## Shortlist endpoints
 
 Business, agency and organization accounts keep named lists of people (for example one per campaign), with a private note on each person. Lists are private to their owner.
@@ -340,6 +361,8 @@ npm test
 ```
 
 Jest + Supertest with an in-memory MongoDB (`mongodb-memory-server` downloads a MongoDB binary the first time). Each test file uses its own database.
+
+Where that download is blocked, point it at a local `mongod`: `MONGOMS_SYSTEM_BINARY=/path/to/mongod MONGOMS_VERSION=<its version> npm test`.
 
 ## Author
 

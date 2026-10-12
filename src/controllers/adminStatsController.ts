@@ -7,6 +7,7 @@ import {
 import { NEEDS_ACTION_BUSINESS_STATUSES } from '../constants/business'
 import { Agreement } from '../models/Agreement'
 import { BusinessProfile } from '../models/BusinessProfile'
+import { ManagerProfile } from '../models/ManagerProfile'
 import { Report } from '../models/Report'
 import { User } from '../models/User'
 import { getPeopleStats } from '../services/personModerationService'
@@ -26,6 +27,8 @@ export async function adminGetStats(_req: Request, res: Response) {
     businessesApproved,
     agreementsDisputed,
     agreementsActive,
+    managersPending,
+    managersApproved,
   ] =
     await Promise.all([
       getPeopleStats(),
@@ -39,6 +42,8 @@ export async function adminGetStats(_req: Request, res: Response) {
       BusinessProfile.countDocuments({ status: 'approved' }),
       Agreement.countDocuments({ status: 'disputed' }),
       Agreement.countDocuments({ status: 'active' }),
+      ManagerProfile.countDocuments({ status: 'pending' }),
+      ManagerProfile.countDocuments({ status: 'approved' }),
     ])
 
   const byRole = Object.fromEntries(usersByRole.map((r) => [r._id, r.count]))
@@ -51,5 +56,6 @@ export async function adminGetStats(_req: Request, res: Response) {
     reports: { open: reportsOpen, reviewing: reportsReviewing },
     businesses: { needsAction: businessesNeedAction, approved: businessesApproved },
     agreements: { disputed: agreementsDisputed, active: agreementsActive },
+    managers: { needsAction: managersPending, approved: managersApproved },
   })
 }

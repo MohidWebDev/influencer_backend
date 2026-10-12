@@ -15,6 +15,8 @@ import {
 } from '../utils/tokens'
 import { Agreement } from '../models/Agreement'
 import { BusinessProfile } from '../models/BusinessProfile'
+import { ManagerProfile } from '../models/ManagerProfile'
+import { Representation } from '../models/Representation'
 import { HireRequest } from '../models/HireRequest'
 import { Notification } from '../models/Notification'
 import { Person } from '../models/Person'
@@ -207,6 +209,9 @@ export async function deleteAccount(req: Request, res: Response) {
   await ProfileClaim.deleteMany({ user: user._id })
   // Business ki company details aur bheji / aayi hui hire requests bhi
   await BusinessProfile.deleteMany({ owner: user._id })
+  // Manager ki details aur talent / manager ke saare rishte
+  await ManagerProfile.deleteMany({ owner: user._id })
+  await Representation.deleteMany({ $or: [{ manager: user._id }, { talent: user._id }] })
   await HireRequest.deleteMany({ $or: [{ business: user._id }, { talent: user._id }] })
   // Jo muahide abhi sign nahi hue woh khatam; signed / mukammal muahide record ke liye rehte hain
   await Agreement.updateMany(

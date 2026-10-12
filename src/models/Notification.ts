@@ -12,12 +12,24 @@ export const NOTIFICATION_TYPES = [
   'business.code_verified',
   'business.otp_locked',
   'agreement.disputed_admin',
+  'manager.new',
   // Talent ke liye
   'claim.code_sent',
   'claim.approved',
   'claim.rejected',
   'hire.new',
   'hire.cancelled',
+  'representation.requested',
+  'hire.answered_by_manager',
+  // Manager ke liye
+  'manager.approved',
+  'manager.rejected',
+  'representation.invited',
+  'hire.new_managed',
+  // Talent aur manager dono
+  'representation.accepted',
+  'representation.declined',
+  'representation.ended',
   // Business ke liye
   'business.code_sent',
   'business.approved',

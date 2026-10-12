@@ -7,6 +7,8 @@ import { HireRequest } from '../models/HireRequest'
 import { Person } from '../models/Person'
 import { User } from '../models/User'
 import { notifyUser } from '../services/notificationService'
+import { assertCanActFor, managerWith, resolveTalentActor } from '../services/representationService'
+import { Representation } from '../models/Representation'
 import { AppError } from '../utils/AppError'
 import { sendSuccess } from '../utils/apiResponse'
 import { parseOrThrow } from '../utils/validation'
@@ -16,6 +18,8 @@ import { createHireSchema, respondHireSchema } from '../validators/businessValid
 const HIRES_LINK = '/dashboard/hire-requests'
 
 const PERSON_POPULATE = { path: 'person', select: 'name slug headline photoUrl verified' }
+// Jawab manager ne diya ho to us ka naam dikhta hai
+const RESPONDER_POPULATE = { path: 'respondedBy', select: 'name role' }
 const BUSINESS_POPULATE = {
   path: 'businessProfile',
   select: 'companyName websiteUrl industry companySize description country city status contactPhone',
@@ -107,6 +111,15 @@ export async function createHire(req: Request, res: Response) {
     data: { business: businessProfile!.companyName, person: person.name },
     link: HIRES_LINK,
   })
+  // Talent ka manager (jise hire requests sambhalne ki ijazat hai) bhi
+  const manager = await managerWith(person._id, 'handleHires')
+  if (manager) {
+    await notifyUser(manager, {
+      type: 'hire.new_managed',
+      data: { business: businessProfile!.companyName, person: person.name },
+      link: HIRES_LINK,
+    })
+  }
 
   await hire.populate([PERSON_POPULATE, BUSINESS_POPULATE])
   const [json] = await withContacts([hire], 'business')
@@ -116,7 +129,7 @@ export async function createHire(req: Request, res: Response) {
 // GET /api/business/hires -> meri bheji hui requests, naye pehle
 export async function listMyHires(req: Request, res: Response) {
   const hires = await HireRequest.find({ business: req.user!.id })
-    .populate(PERSON_POPULATE)
+    .populate([PERSON_POPULATE, RESPONDER_POPULATE])
     .sort({ createdAt: -1 })
     .limit(100)
   sendSuccess(res, { hires: await withContacts(hires, 'business') })
@@ -145,10 +158,37 @@ export async function cancelHire(req: Request, res: Response) {
   sendSuccess(res, { hire: json })
 }
 
-// GET /api/me/hire-requests -> talent ko aayi hui requests, naye pehle
+// Manager ke woh talents (profiles) jin ki hire requests woh sambhal sakta hai
+async function managedPersons(managerId: string) {
+  const reps = await Representation.find({
+    manager: managerId,
+    status: 'active',
+    'permissions.handleHires': true,
+  }).select('person')
+  const allowed: unknown[] = []
+  for (const rep of reps) {
+    try {
+      await assertCanActFor(managerId, rep.person, 'handleHires')
+      allowed.push(rep.person)
+    } catch {
+      // Rishta ab kaam ka nahi (profile badli / manager unverified)
+    }
+  }
+  return allowed
+}
+
+// GET /api/me/hire-requests -> talent ko aayi hui requests, naye pehle.
+// Manager: ?person= ho to us talent ki, warna apne saare talents ki (ek inbox)
 export async function listIncomingHires(req: Request, res: Response) {
-  const hires = await HireRequest.find({ talent: req.user!.id })
-    .populate([PERSON_POPULATE, BUSINESS_POPULATE])
+  let filter: Record<string, unknown>
+  if (req.user!.role === 'representative' && !req.query.person) {
+    filter = { person: { $in: await managedPersons(req.user!.id) } }
+  } else {
+    const { talentId, personId } = await resolveTalentActor(req, 'handleHires')
+    filter = personId ? { talent: talentId, person: personId } : { talent: talentId }
+  }
+  const hires = await HireRequest.find(filter)
+    .populate([PERSON_POPULATE, BUSINESS_POPULATE, RESPONDER_POPULATE])
     .sort({ createdAt: -1 })
     .limit(100)
   sendSuccess(res, { hires: await withContacts(hires, 'talent') })
@@ -157,7 +197,15 @@ export async function listIncomingHires(req: Request, res: Response) {
 // PATCH /api/me/hire-requests/:id -> talent accept ya decline kare
 export async function respondHire(req: Request, res: Response) {
   const { action, note } = parseOrThrow(respondHireSchema, req.body ?? {})
-  const hire = await findHire(String(req.params.id), { talent: req.user!.id })
+  const asManager = req.user!.role === 'representative'
+  const hire = await findHire(String(req.params.id), asManager ? {} : { talent: req.user!.id })
+  // Manager sirf apne talent ki request ka, "handleHires" ijazat ke saath
+  if (asManager) {
+    const rep = await assertCanActFor(req.user!.id, hire.person, 'handleHires').catch(() => null)
+    if (!rep || String(rep.talent) !== String(hire.talent)) {
+      throw new AppError(404, 'NOT_FOUND', 'Hire request not found')
+    }
+  }
   if (hire.status !== 'pending') {
     throw new AppError(409, 'INVALID_STATE', `This request was already ${hire.status}`)
   }
@@ -165,9 +213,10 @@ export async function respondHire(req: Request, res: Response) {
     status: action === 'accept' ? 'accepted' : 'declined',
     respondedAt: new Date(),
     responseNote: note || undefined,
+    respondedBy: req.user!.id,
   })
   await hire.save()
-  await hire.populate([PERSON_POPULATE, BUSINESS_POPULATE])
+  await hire.populate([PERSON_POPULATE, BUSINESS_POPULATE, RESPONDER_POPULATE])
 
   const person = (hire.person as unknown as { name?: string } | null)?.name
   await notifyUser(hire.business, {
@@ -175,6 +224,19 @@ export async function respondHire(req: Request, res: Response) {
     data: { person },
     link: HIRES_LINK,
   })
+  // Manager ne jawab diya to talent ko bata do
+  if (asManager) {
+    const manager = await User.findById(req.user!.id).select('name')
+    await notifyUser(hire.talent, {
+      type: 'hire.answered_by_manager',
+      data: {
+        name: manager?.name ?? '',
+        business: (hire.businessProfile as unknown as { companyName?: string } | null)?.companyName ?? '',
+        action,
+      },
+      link: HIRES_LINK,
+    })
+  }
   const [json] = await withContacts([hire], 'talent')
   sendSuccess(res, { hire: json })
 }
