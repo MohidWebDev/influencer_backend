@@ -28,6 +28,10 @@ async function verifiedManager() {
     .patch(`/api/admin/managers/${saved.body.data.manager._id}`)
     .send({ action: 'approve' })
   expect(approved.body.data.manager.status).toBe('approved')
+  // "Verified manager" notification ka data khali hai, phir bhi object aana chahiye
+  const notes = await manager.agent.get('/api/notifications')
+  const note = notes.body.data.notifications.find((n: { type: string }) => n.type === 'manager.approved')
+  expect(note.data).toEqual({})
   return { ...manager, managerProfileId: saved.body.data.manager._id as string, admin }
 }
 

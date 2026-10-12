@@ -73,6 +73,8 @@ const notificationSchema = new Schema<INotification>(
   },
   {
     timestamps: { createdAt: true, updatedAt: false },
+    // Khali data ({}) bhi save ho aur jawab mein aaye: frontend hamesha data.x parhta hai
+    minimize: false,
     toJSON: {
       transform: (_doc, ret: Record<string, unknown>) => {
         delete ret.__v
