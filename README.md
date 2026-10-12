@@ -266,6 +266,15 @@ A manager / agent sends their details, an admin approves them, and then they can
 
 Acting for a talent: the talent endpoints under `/api/me` (services, availability, hire requests) accept `?person=<profile id>` from a manager with the right permission; `GET /api/me/hire-requests` without it gives the manager one inbox for all their talents. `PATCH /api/people/:id` works for a manager with `manageProfile`. Hire answers record `respondedBy`, and the talent is notified. Public profiles show `representedBy` (`name, agencyName`). Admin: `GET /api/admin/managers` (`status, q, page, limit`), `GET /api/admin/managers/:id`, `PATCH /api/admin/managers/:id` (`action, reason`); rejecting a verified manager ends all their links. Deleting either account removes its links.
 
+## Directory endpoints (public)
+
+The navbar's **Businesses** and **Managers** pages. An account shows up as soon as it signs up (business or manager), with the public parts of its details once filled in. Rejected (by an admin) and suspended accounts are left out; verified ones come first, then newest. Email, phone, registration number and proof links are never returned.
+
+| Method | URL | What |
+|---|---|---|
+| GET | `/api/directory/businesses?q=&page=&limit=` | `businesses[] { _id, name, industry, companySize, description, country, city, websiteUrl, verified, inReview, joinedAt }` |
+| GET | `/api/directory/managers?q=&page=&limit=` | `managers[] { _id, name, agencyName, bio, country, city, websiteUrl, talents (active representations), verified, inReview, joinedAt }` |
+
 ## Shortlist endpoints
 
 Business, agency and organization accounts keep named lists of people (for example one per campaign), with a private note on each person. Lists are private to their owner.

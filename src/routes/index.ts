@@ -12,6 +12,7 @@ import peopleRoutes from './peopleRoutes'
 import taxonomyRoutes from './taxonomyRoutes'
 import serviceRoutes from './serviceRoutes'
 import shortlistRoutes from './shortlistRoutes'
+import directoryRoutes from './directoryRoutes'
 
 // Saari API routes yahan ek jagah jorte hain
 const router = Router()
@@ -30,5 +31,6 @@ router.use('/manager', managerRoutes)
 router.use('/business', businessRoutes)
 router.use('/agreements', agreementRoutes)
 router.use('/shortlists', shortlistRoutes)
+router.use('/directory', directoryRoutes)
 
 export default router
