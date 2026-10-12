@@ -293,7 +293,19 @@ Create and edit use `POST /api/people` and `PATCH /api/people/:id`.
 
 Public GETs send `Cache-Control: public, max-age=0, must-revalidate` (the browser always checks) and `CDN-Cache-Control` so Vercel's CDN can answer for 60s (people) or 1h (taxonomy). Errors are `no-store`.
 
-## Environment variables on Vercel
+## Deploying on Render
+
+`render.yaml` has the settings. For a service made in the Render dashboard use:
+
+- **Build command:** `npm ci --include=dev && npm run build` (TypeScript compiles to `dist/`; `--include=dev` because `NODE_ENV=production` would skip TypeScript)
+- **Start command:** `npm start` (runs `node dist/server.js`, which listens on Render's `PORT`)
+- **Node version:** 22 (`engines` in `package.json`, or `NODE_VERSION=22`)
+- **Health check path:** `/api/health`
+- The environment variables below. In MongoDB Atlas, allow access from Render (Network Access, e.g. `0.0.0.0/0`).
+
+Then point the frontend's `vercel.json` `/api/*` rewrite at the Render URL.
+
+## Environment variables (Vercel / Render)
 
 `NODE_ENV`, `CLIENT_URL`, `MONGO_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (see `.env.example`).
 
