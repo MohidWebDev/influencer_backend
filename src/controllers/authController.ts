@@ -42,7 +42,7 @@ export function issueTokens(res: Response, user: UserDocument) {
 
 // POST /api/auth/register
 export async function register(req: Request, res: Response) {
-  const { name, email, password, role } = req.body as RegisterInput
+  const { name, email, password, role, company } = req.body as RegisterInput
 
   const exists = await User.exists({ email })
   if (exists) {
@@ -51,7 +51,7 @@ export async function register(req: Request, res: Response) {
     })
   }
 
-  const user = await User.create({ name, email, password, role })
+  const user = await User.create({ name, email, password, role, company })
   issueTokens(res, user)
   sendSuccess(res, { user }, 201)
 }

@@ -1,5 +1,6 @@
 import { Schema, model, type HydratedDocument, type Model } from 'mongoose'
 import bcrypt from 'bcryptjs'
+import { COMPANY_SIZES } from '../constants/business'
 import { ROLES, type Role } from '../constants/roles'
 
 // User = login account. Public profile (Person) alag model hoga
@@ -10,6 +11,14 @@ export interface IUser {
   role: Role
   isEmailVerified: boolean
   status: 'active' | 'suspended'
+  // Business signup pe di gayi company details. Tasdeeq ka form inhi se shuru hota hai
+  // (wahan website, mulk waghera bhi chahiye). Asal record BusinessProfile hai
+  company?: {
+    companyName: string
+    industry?: string
+    companySize?: (typeof COMPANY_SIZES)[number]
+    description?: string
+  }
   // Logout pe barhta hai, taake purane refresh tokens bekaar ho jayen
   tokenVersion: number
   createdAt: Date
@@ -39,6 +48,18 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
     role: { type: String, enum: ROLES, required: true },
     isEmailVerified: { type: Boolean, default: false },
     status: { type: String, enum: ['active', 'suspended'], default: 'active' },
+    company: {
+      type: new Schema(
+        {
+          companyName: { type: String, trim: true, maxlength: 120 },
+          industry: { type: String, trim: true, maxlength: 80 },
+          companySize: { type: String, enum: COMPANY_SIZES },
+          description: { type: String, trim: true, maxlength: 1000 },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
     tokenVersion: { type: Number, default: 0, select: false },
   },
   {

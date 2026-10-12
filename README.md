@@ -63,7 +63,7 @@ Request -> app.ts -> routes -> middlewares -> controller -> model -> sendSuccess
 
 | Method | URL | Who | What |
 |---|---|---|---|
-| POST | `/api/auth/register` | anyone | body: `name, email, password, role` (talent / representative / business / agency / organization) |
+| POST | `/api/auth/register` | anyone | body: `email, password, role` (talent / representative / business / agency / organization) plus `name`. Business sends company details instead of `name`: `companyName` (required), `industry`, `companySize` (`1-10` … `1000+`), `description`; the account name becomes the company name and the details come back as `user.company`, which prefills the business verification form |
 | POST | `/api/auth/login` | anyone | body: `email, password` |
 | POST | `/api/auth/refresh` | refresh cookie | new access + refresh tokens |
 | POST | `/api/auth/logout` | anyone | clears cookies, invalidates refresh tokens |

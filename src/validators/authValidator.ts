@@ -1,15 +1,47 @@
 import { z } from 'zod'
+import { COMPANY_SIZES } from '../constants/business'
 import { SIGNUP_ROLES } from '../constants/roles'
 
-export const registerSchema = z.object({
-  name: z.string().trim().min(2, 'Name must be at least 2 characters').max(100),
-  email: z.email('Enter a valid email').trim().toLowerCase(),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(100),
-  role: z.enum(SIGNUP_ROLES, 'Choose a valid account type'),
-})
+// Signup ka form account type ke hisaab se: business apni company ki details deta hai
+// (naam ki jagah company ka naam), baqi sab apna poora naam
+export const registerSchema = z
+  .object({
+    name: z.string().trim().max(100).optional(),
+    email: z.email('Enter a valid email').trim().toLowerCase(),
+    password: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .max(100),
+    role: z.enum(SIGNUP_ROLES, 'Choose a valid account type'),
+    companyName: z.string().trim().max(120, 'Use at most 120 characters').optional(),
+    industry: z.string().trim().max(80, 'Use at most 80 characters').optional(),
+    companySize: z.enum([...COMPANY_SIZES, ''], 'Choose a company size').optional(),
+    description: z.string().trim().max(1000, 'Use at most 1000 characters').optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.role === 'business') {
+      if ((v.companyName ?? '').length < 2) {
+        ctx.addIssue({ code: 'custom', path: ['companyName'], message: 'Company name must be at least 2 characters' })
+      }
+    } else if ((v.name ?? '').length < 2) {
+      ctx.addIssue({ code: 'custom', path: ['name'], message: 'Name must be at least 2 characters' })
+    }
+  })
+  .transform(({ companyName, industry, companySize, description, ...rest }) =>
+    rest.role === 'business'
+      ? {
+          ...rest,
+          // Account ka naam = company ka naam (navbar, dashboard waghera mein yahi dikhta hai)
+          name: companyName!.slice(0, 100),
+          company: {
+            companyName: companyName!,
+            industry: industry || undefined,
+            companySize: companySize || undefined,
+            description: description || undefined,
+          },
+        }
+      : { ...rest, name: rest.name!, company: undefined },
+  )
 
 export const loginSchema = z.object({
   email: z.email('Enter a valid email').trim().toLowerCase(),
