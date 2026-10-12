@@ -328,9 +328,9 @@ Then point the frontend's `vercel.json` `/api/*` rewrite at the Render URL.
 
 ## Environment variables (Vercel / Render)
 
-`NODE_ENV`, `CLIENT_URL`, `MONGO_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (see `.env.example`).
+`NODE_ENV`, `CLIENT_URL`, `MONGO_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `RESEND_API_KEY`, `MAIL_FROM` (see `.env.example`).
 
-For password reset emails also set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM`. With Gmail use `smtp.gmail.com`, port `587` and a Google **App Password** (not the normal Gmail password). Without `SMTP_HOST` the code is printed in the server terminal in development, and production answers 503 `EMAIL_NOT_CONFIGURED`.
+Emails (password reset codes, agreement signing codes) are sent with [Resend](https://resend.com): set `RESEND_API_KEY` (resend.com → API Keys) and `MAIL_FROM`, an address on a domain you verified in Resend, e.g. `Influence Platform <support@yourdomain.com>`. Without `MAIL_FROM` it uses Resend's test sender `onboarding@resend.dev`, which only delivers to your own Resend account's email. Without `RESEND_API_KEY` the email is printed in the server terminal in development, and production answers 503 `EMAIL_NOT_CONFIGURED`; a failed send answers 503 `EMAIL_FAILED`.
 
 ## Admin panel API (admin only)
 
