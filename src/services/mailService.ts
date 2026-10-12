@@ -1,4 +1,4 @@
-import { Resend } from 'resend'
+import nodemailer, { type Transporter } from 'nodemailer'
 import { env, isProduction } from '../config/env'
 import { AppError } from '../utils/AppError'
 
@@ -9,19 +9,24 @@ export interface MailMessage {
   html: string
 }
 
-// Resend ka test sender: domain verify hone tak sirf apne Resend account ke email pe bhejta hai
-const RESEND_TEST_SENDER = 'onboarding@resend.dev'
+let transporter: Transporter | null = null
 
-let client: Resend | null = null
-
-function getClient() {
-  client ??= new Resend(env.resendApiKey)
-  return client
+function getTransporter() {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: env.smtpHost,
+      port: env.smtpPort,
+      // 465 = seedha TLS, 587 = STARTTLS
+      secure: env.smtpPort === 465,
+      auth: env.smtpUser ? { user: env.smtpUser, pass: env.smtpPass } : undefined,
+    })
+  }
+  return transporter
 }
 
-export const isMailConfigured = () => Boolean(env.resendApiKey)
+export const isMailConfigured = () => Boolean(env.smtpHost)
 
-// Email Resend se bhejta hai. API key set na ho to development mein terminal pe dikha deta hai
+// Email bhejta hai. SMTP set na ho to development mein terminal pe dikha deta hai
 export async function sendMail(message: MailMessage) {
   if (!isMailConfigured()) {
     if (isProduction) {
@@ -31,15 +36,12 @@ export async function sendMail(message: MailMessage) {
     return
   }
 
-  // Resend error throw nahi karta, { error } wapas deta hai
-  const { error } = await getClient()
-    .emails.send({
-      from: env.mailFrom || `${env.platformName} <${RESEND_TEST_SENDER}>`,
+  try {
+    await getTransporter().sendMail({
+      from: env.mailFrom || `${env.platformName} <${env.smtpUser}>`,
       ...message,
     })
-    .catch((networkError: unknown) => ({ error: networkError }))
-
-  if (error) {
+  } catch (error) {
     console.error('[mail] send failed', error)
     throw new AppError(503, 'EMAIL_FAILED', 'We could not send the email. Please try again')
   }

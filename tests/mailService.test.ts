@@ -1,8 +1,10 @@
-// Resend ka asal API nahi: SDK ko mock karte hain
-const send = jest.fn()
-jest.mock('resend', () => ({ Resend: jest.fn().mockImplementation(() => ({ emails: { send } })) }))
+// Asal SMTP server nahi: nodemailer ko mock karte hain
+const sendMail = jest.fn()
+const createTransport = jest.fn(() => ({ sendMail }))
+jest.mock('nodemailer', () => ({ __esModule: true, default: { createTransport } }))
 
 const message = { to: 'ali@example.com', subject: 'Your code', text: '123456', html: '<p>123456</p>' }
+const SMTP_KEYS = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'MAIL_FROM']
 
 async function loadMail(env: Record<string, string>) {
   jest.resetModules()
@@ -11,38 +13,44 @@ async function loadMail(env: Record<string, string>) {
 }
 
 afterEach(() => {
-  send.mockReset()
-  delete process.env.RESEND_API_KEY
-  delete process.env.MAIL_FROM
+  sendMail.mockReset()
+  createTransport.mockClear()
+  for (const key of SMTP_KEYS) delete process.env[key]
 })
 
-describe('mailService (Resend)', () => {
-  it('sends through Resend with MAIL_FROM', async () => {
-    send.mockResolvedValue({ data: { id: 'email_1' }, error: null })
-    const { sendMail } = await loadMail({ RESEND_API_KEY: 're_test', MAIL_FROM: 'Influence <hi@example.com>' })
-    await sendMail(message)
-    expect(send).toHaveBeenCalledWith({ from: 'Influence <hi@example.com>', ...message })
+describe('mailService (SMTP / nodemailer)', () => {
+  it('sends through the SMTP server with MAIL_FROM', async () => {
+    sendMail.mockResolvedValue({ messageId: '1' })
+    const mail = await loadMail({
+      SMTP_HOST: 'smtp.example.com',
+      SMTP_PORT: '465',
+      SMTP_USER: 'bot@example.com',
+      SMTP_PASS: 'secret',
+      MAIL_FROM: 'Influence <hi@example.com>',
+    })
+    await mail.sendMail(message)
+    expect(createTransport).toHaveBeenCalledWith({
+      host: 'smtp.example.com',
+      port: 465,
+      secure: true,
+      auth: { user: 'bot@example.com', pass: 'secret' },
+    })
+    expect(sendMail).toHaveBeenCalledWith({ from: 'Influence <hi@example.com>', ...message })
   })
 
-  it('answers 503 EMAIL_FAILED when Resend returns an error or the network fails', async () => {
-    const { sendMail } = await loadMail({ RESEND_API_KEY: 're_test' })
-    send.mockResolvedValue({ data: null, error: { name: 'validation_error', message: 'bad from' } })
-    await expect(sendMail(message)).rejects.toMatchObject({ statusCode: 503, code: 'EMAIL_FAILED' })
-    send.mockRejectedValue(new Error('offline'))
-    await expect(sendMail(message)).rejects.toMatchObject({ statusCode: 503, code: 'EMAIL_FAILED' })
+  it('answers 503 EMAIL_FAILED when the SMTP server refuses', async () => {
+    sendMail.mockRejectedValue(new Error('535 auth failed'))
+    const mail = await loadMail({ SMTP_HOST: 'smtp.example.com', SMTP_USER: 'bot@example.com' })
+    const log = jest.spyOn(console, 'error').mockImplementation(() => {})
+    await expect(mail.sendMail(message)).rejects.toMatchObject({ statusCode: 503, code: 'EMAIL_FAILED' })
+    log.mockRestore()
   })
 
-  it('uses Resend’s test sender without MAIL_FROM, and prints the email without an API key', async () => {
-    send.mockResolvedValue({ data: { id: 'email_2' }, error: null })
-    const withKey = await loadMail({ RESEND_API_KEY: 're_test' })
-    await withKey.sendMail(message)
-    expect(send.mock.calls[0][0].from).toMatch(/<onboarding@resend\.dev>$/)
-
-    delete process.env.RESEND_API_KEY
-    const noKey = await loadMail({})
+  it('prints the email in development when SMTP is not set up', async () => {
+    const mail = await loadMail({})
     const log = jest.spyOn(console, 'info').mockImplementation(() => {})
-    await noKey.sendMail(message)
-    expect(send).toHaveBeenCalledTimes(1)
+    await mail.sendMail(message)
+    expect(createTransport).not.toHaveBeenCalled()
     expect(log).toHaveBeenCalled()
     log.mockRestore()
   })
