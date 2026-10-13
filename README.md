@@ -319,10 +319,10 @@ Notifications are stored per user in the `notifications` collection: `type`, `da
 
 | Method | URL | What |
 |---|---|---|
-| GET | `/api/notifications?page=&limit=&unread=true` | my notifications, newest first; `data.unread` = unread count |
+| GET | `/api/notifications?page=&limit=&unread=true&category=` | my notifications, newest first. `category` = `hiring, campaigns, agreements, verification, manager, admin` (the page's tabs; the type → category map is `src/constants/notifications.ts`). `data.unread` = total unread, `data.categories` = `{ [category]: { total, unread } }` for categories that have any |
 | GET | `/api/notifications/unread-count` | `{ unread }` for the bell badge |
 | PATCH | `/api/notifications/:id/read` | mark one as read (only your own) |
-| POST | `/api/notifications/read-all` | mark all as read |
+| POST | `/api/notifications/read-all?category=` | mark all as read, or only one category |
 
 Sent automatically:
 
