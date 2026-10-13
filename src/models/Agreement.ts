@@ -44,6 +44,8 @@ export interface ISignature {
   email: string
   ip?: string
   userAgent?: string
+  // Manager ne talent ki taraf se sign kiya: talent ka naam
+  onBehalfOf?: string
 }
 
 export interface ISignCode {
@@ -137,6 +139,7 @@ const signatureSchema = new Schema<ISignature>(
     signedAt: { type: Date, required: true },
     name: { type: String, required: true },
     email: { type: String, required: true },
+    onBehalfOf: { type: String },
     ip: { type: String },
     userAgent: { type: String },
   },

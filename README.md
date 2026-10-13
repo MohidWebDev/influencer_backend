@@ -220,6 +220,8 @@ completed    every milestone approved by the business
 cancelled    withdrawn before signing, or cancelled by an admin in a dispute
 ```
 
+Once both sides have signed, the business approves each delivered milestone; it can no longer send work back for changes (raise a dispute instead). **Managers:** a talent's verified manager with the `handleHires` permission sees the talent's agreements (`GET /api/agreements` lists every agreement of the talents they handle) and can do everything the talent can (propose terms, sign, cancel, deliver, dispute, review). `GET /api/agreements/:id` then returns `side: 'talent', byManager: true`, the sign code goes to the manager's email and the signature records the manager's name with `onBehalfOf` (the talent). Talent-side notifications also reach that manager.
+
 Terms: `title, scope, currency, milestones[] { title, amount, dueDate? } (1-10), paymentTerms?, usageRights?, revisions (0-20, default 2), cancellationTerms?`. Every proposed version is kept in `history`. A signature stores the version, time, name, email, IP and user agent. Signing codes are hashed, expire after 10 minutes, can be resent after 60 s and allow 5 wrong tries.
 
 | Method | URL | Who | What |
@@ -233,7 +235,6 @@ Terms: `title, scope, currency, milestones[] { title, amount, dueDate? } (1-10),
 | POST | `/api/agreements/:id/cancel` | the two parties | body `reason?`. Only while `negotiating` |
 | POST | `/api/agreements/:id/milestones/:index/deliver` | talent | body `note, link?`. `pending` -> `delivered` |
 | POST | `/api/agreements/:id/milestones/:index/approve` | business | `delivered` -> `approved`. The last approval completes the agreement |
-| POST | `/api/agreements/:id/milestones/:index/request-changes` | business | body `note`. `delivered` -> `pending`, uses one revision (409 `NO_REVISIONS_LEFT` when all are used) |
 | POST | `/api/agreements/:id/dispute` | the two parties | body `reason` (min 20). Only while `active`; admins are notified |
 | POST | `/api/agreements/:id/review` | the two parties | body `rating (1-5), comment?`. Once per side, only when `completed` |
 | GET | `/api/people/:slug/reviews?page=&limit=` | anyone | `{ rating { average, count }, reviews[] }`: what businesses wrote about the talent, newest first, 4 per page by default (`meta.total` = all reviews). `rating` always covers every review. Each person in `GET /api/people` and `GET /api/people/:slug` also has `rating { average, count }` (or `null` with no reviews) for the stars on cards |

@@ -55,9 +55,6 @@ export const deliverMilestoneSchema = z.object({
   link: z.union([webUrl('Enter a valid URL'), z.literal('')]).optional(),
 })
 
-export const requestChangesSchema = z.object({
-  note: z.string().trim().min(3, 'Explain what needs to change').max(1000),
-})
 
 export const disputeSchema = z.object({
   reason: z.string().trim().min(20, 'Explain the problem (at least 20 characters)').max(2000),

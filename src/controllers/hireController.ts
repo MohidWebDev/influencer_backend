@@ -7,7 +7,12 @@ import { HireRequest } from '../models/HireRequest'
 import { Person } from '../models/Person'
 import { User } from '../models/User'
 import { notifyUser } from '../services/notificationService'
-import { assertCanActFor, managerWith, resolveTalentActor } from '../services/representationService'
+import {
+  assertCanActFor,
+  managedPersons,
+  managerWith,
+  resolveTalentActor,
+} from '../services/representationService'
 import { Representation } from '../models/Representation'
 import { AppError } from '../utils/AppError'
 import { sendSuccess } from '../utils/apiResponse'
@@ -158,31 +163,12 @@ export async function cancelHire(req: Request, res: Response) {
   sendSuccess(res, { hire: json })
 }
 
-// Manager ke woh talents (profiles) jin ki hire requests woh sambhal sakta hai
-async function managedPersons(managerId: string) {
-  const reps = await Representation.find({
-    manager: managerId,
-    status: 'active',
-    'permissions.handleHires': true,
-  }).select('person')
-  const allowed: unknown[] = []
-  for (const rep of reps) {
-    try {
-      await assertCanActFor(managerId, rep.person, 'handleHires')
-      allowed.push(rep.person)
-    } catch {
-      // Rishta ab kaam ka nahi (profile badli / manager unverified)
-    }
-  }
-  return allowed
-}
-
 // GET /api/me/hire-requests -> talent ko aayi hui requests, naye pehle.
 // Manager: ?person= ho to us talent ki, warna apne saare talents ki (ek inbox)
 export async function listIncomingHires(req: Request, res: Response) {
   let filter: Record<string, unknown>
   if (req.user!.role === 'representative' && !req.query.person) {
-    filter = { person: { $in: await managedPersons(req.user!.id) } }
+    filter = { person: { $in: await managedPersons(req.user!.id, 'handleHires') } }
   } else {
     const { talentId, personId } = await resolveTalentActor(req, 'handleHires')
     filter = personId ? { talent: talentId, person: personId } : { talent: talentId }

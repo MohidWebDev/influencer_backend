@@ -160,7 +160,7 @@ describe('agreements', () => {
     expect((await talent.agent.get('/api/agreements')).body.data.agreements[0]._id).toBe(id)
   })
 
-  it('tracks milestones with revisions until completed, then takes reviews', async () => {
+  it('tracks milestones until completed, then takes reviews', async () => {
     const { business, talent, person, id } = await activeAgreement()
 
     expect((await business.agent.post(`/api/agreements/${id}/milestones/0/deliver`).send({ note: 'Done' })).status).toBe(403)
@@ -169,17 +169,11 @@ describe('agreements', () => {
       .send({ note: 'Concept attached', link: 'https://drive.example.com/concept' })
     expect(delivered.body.data.agreement.work[0].status).toBe('delivered')
 
+    // Sign ke baad business kaam wapas "changes" ke liye nahi bhej sakta
     const changes = await business.agent
       .post(`/api/agreements/${id}/milestones/0/request-changes`)
       .send({ note: 'Please use our new logo' })
-    expect(changes.body.data.agreement.work[0].status).toBe('pending')
-    expect(changes.body.data.agreement.revisionsUsed).toBe(1)
-
-    await talent.agent.post(`/api/agreements/${id}/milestones/0/deliver`).send({ note: 'New logo used' })
-    const noMore = await business.agent
-      .post(`/api/agreements/${id}/milestones/0/request-changes`)
-      .send({ note: 'One more change' })
-    expect(noMore.body.error.code).toBe('NO_REVISIONS_LEFT')
+    expect(changes.status).toBe(404)
 
     await business.agent.post(`/api/agreements/${id}/milestones/0/approve`)
     expect((await business.agent.post(`/api/agreements/${id}/review`).send({ rating: 5 })).status).toBe(409)
@@ -227,5 +221,62 @@ describe('agreements', () => {
     const res = await talent.agent.delete('/api/auth/account').send({ confirm: `delete ${talent.user.name}` })
     expect(res.status).toBe(409)
     expect(res.body.error.code).toBe('ACTIVE_AGREEMENT')
+  })
+
+  it('lets the talent\'s manager (with the hire permission) handle the agreement for them', async () => {
+    const { ManagerProfile } = await import('../src/models/ManagerProfile')
+    const { Representation } = await import('../src/models/Representation')
+    const { Notification } = await import('../src/models/Notification')
+    const parties = await acceptedHire()
+    const manager = await loginAs(app, 'representative')
+    await ManagerProfile.create({
+      owner: manager.user._id,
+      country: 'PK',
+      socialAccounts: [{ platform: 'linkedin', url: 'https://linkedin.com/in/mgr' }],
+      status: 'approved',
+    })
+    const rep = await Representation.create({
+      manager: manager.user._id,
+      talent: parties.talent.user._id,
+      person: parties.person._id,
+      status: 'active',
+      initiatedBy: 'talent',
+      permissions: { manageProfile: false, handleHires: false },
+    })
+
+    const created = await parties.business.agent.post('/api/agreements').send({ hireId: parties.hireId, terms })
+    const id = created.body.data.agreement._id as string
+
+    // Ijazat ke baghair kuch nahi
+    expect((await manager.agent.get(`/api/agreements/${id}`)).status).toBe(404)
+    expect((await manager.agent.get('/api/agreements')).body.data.agreements).toEqual([])
+
+    await Representation.updateOne({ _id: rep._id }, { $set: { 'permissions.handleHires': true } })
+    const seen = await manager.agent.get(`/api/agreements/${id}`)
+    expect(seen.body.data).toMatchObject({ side: 'talent', byManager: true })
+    expect((await manager.agent.get('/api/agreements')).body.data.agreements.map((a: { _id: string }) => a._id)).toEqual([id])
+    // Business ne propose kiya: manager ko bhi notification
+    expect(await Notification.countDocuments({ recipient: manager.user._id, type: 'agreement.proposed' })).toBe(0)
+
+    // Manager talent ki taraf se shartein badle aur sign kare
+    const countered = await manager.agent.put(`/api/agreements/${id}/terms`).send({ terms: { ...terms, title: 'Spring campaign v2' } })
+    expect(countered.body.data.agreement.proposedBy).toBe('talent')
+    await sign(parties.business.agent, parties.business.user.email, id)
+    const signed = await sign(manager.agent, manager.user.email, id)
+    expect(signed.body.data.agreement.status).toBe('active')
+    expect(signed.body.data.agreement.signatures.talent).toMatchObject({
+      name: manager.user.name,
+      onBehalfOf: parties.talent.user.name,
+    })
+    // Business ke kaam manager nahi kar sakta
+    expect((await manager.agent.post(`/api/agreements/${id}/milestones/0/approve`)).status).toBe(403)
+    const delivered = await manager.agent
+      .post(`/api/agreements/${id}/milestones/0/deliver`)
+      .send({ note: 'Delivered by the manager' })
+    expect(delivered.body.data.agreement.work[0].status).toBe('delivered')
+    expect(await Notification.countDocuments({ recipient: manager.user._id, type: 'agreement.active' })).toBe(1)
+    // Doosra manager kuch nahi dekh sakta
+    const stranger = await loginAs(app, 'representative')
+    expect((await stranger.agent.get(`/api/agreements/${id}`)).status).toBe(404)
   })
 })

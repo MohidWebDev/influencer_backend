@@ -69,3 +69,22 @@ export async function canManageProfile(managerId: Id, personId: Id) {
     return false
   }
 }
+
+// Manager ke woh talents (profiles) jin ke liye us ke paas ye ijazat hai (aur rishta abhi sahi hai)
+export async function managedPersons(managerId: Id, permission: RepresentationPermission) {
+  const reps = await Representation.find({
+    manager: managerId,
+    status: 'active',
+    [`permissions.${permission}`]: true,
+  }).select('person')
+  const allowed: Types.ObjectId[] = []
+  for (const rep of reps) {
+    try {
+      await assertCanActFor(managerId, rep.person, permission)
+      allowed.push(rep.person)
+    } catch {
+      // Rishta ab kaam ka nahi (profile badli / manager unverified)
+    }
+  }
+  return allowed
+}

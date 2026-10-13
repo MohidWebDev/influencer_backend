@@ -18,6 +18,7 @@ import { User } from '../models/User'
 import { writeAuditLog } from '../services/auditService'
 import { agreementSignCodeEmail } from '../services/emailTemplates'
 import { sendMail } from '../services/mailService'
+import { assertCanActFor, managedPersons, managerWith } from '../services/representationService'
 import { notifyAdmins, notifyUser } from '../services/notificationService'
 import type { NotificationType } from '../models/Notification'
 import { AppError } from '../utils/AppError'
@@ -30,7 +31,6 @@ import {
   createAgreementSchema,
   deliverMilestoneSchema,
   disputeSchema,
-  requestChangesSchema,
   resolveDisputeSchema,
   reviewSchema,
   signAgreementSchema,
@@ -111,11 +111,17 @@ async function notifySide(
   type: NotificationType,
   extra: Record<string, string | undefined> = {},
 ) {
-  await notifyUser(userOf(agreement, side), {
+  const message = {
     type,
     data: { ...(await names(agreement)), ...extra },
     link: agreementLink(agreement),
-  })
+  }
+  await notifyUser(userOf(agreement, side), message)
+  // Talent ka manager (jise hire / muahide sambhalne ki ijazat hai) bhi khabardar
+  if (side === 'talent') {
+    const manager = await managerWith(agreement.person, 'handleHires')
+    if (manager) await notifyUser(manager, message)
+  }
 }
 
 async function audit(req: Request, action: string, agreement: AgreementDoc, after?: unknown) {
@@ -133,7 +139,8 @@ async function respond(res: Response, agreement: AgreementDoc, status = 200) {
   sendSuccess(res, { agreement }, status)
 }
 
-// Sirf muahide ke dono taraf (aur admin dekh sakta hai). side = login user kis taraf hai
+// Sirf muahide ke dono taraf (aur admin dekh sakta hai). side = login user kis taraf hai.
+// Talent ka manager ("handleHires" ijazat ke saath) talent ki taraf se sab kar sakta hai
 async function loadAgreement(req: Request, withCodes = false) {
   const id = String(req.params.id)
   if (!isValidObjectId(id)) throw new AppError(404, 'NOT_FOUND', 'Agreement not found')
@@ -142,10 +149,18 @@ async function loadAgreement(req: Request, withCodes = false) {
   const agreement = await query
   if (!agreement) throw new AppError(404, 'NOT_FOUND', 'Agreement not found')
   const me = req.user!.id
-  const side: AgreementParty | null =
+  let side: AgreementParty | null =
     String(agreement.business) === me ? 'business' : String(agreement.talent) === me ? 'talent' : null
+  let byManager = false
+  if (!side && req.user!.role === 'representative') {
+    const rep = await assertCanActFor(me, agreement.person, 'handleHires').catch(() => null)
+    if (rep && String(rep.talent) === String(agreement.talent)) {
+      side = 'talent'
+      byManager = true
+    }
+  }
   if (!side) throw new AppError(404, 'NOT_FOUND', 'Agreement not found')
-  return { agreement, side }
+  return { agreement, side, byManager }
 }
 
 function requireStatus(agreement: AgreementDoc, ...statuses: IAgreement['status'][]) {
@@ -195,7 +210,12 @@ export async function createAgreement(req: Request, res: Response) {
 // GET /api/agreements -> mere saare muahide (business ya talent), naye pehle
 export async function listMyAgreements(req: Request, res: Response) {
   const me = req.user!.id
-  const agreements = await Agreement.find({ $or: [{ business: me }, { talent: me }] })
+  // Manager: apne talents ke muahide (jin ke liye hire / muahide ki ijazat hai)
+  const filter =
+    req.user!.role === 'representative'
+      ? { person: { $in: await managedPersons(me, 'handleHires') } }
+      : { $or: [{ business: me }, { talent: me }] }
+  const agreements = await Agreement.find(filter)
     .select('-history')
     .populate(POPULATE)
     .sort({ updatedAt: -1 })
@@ -205,9 +225,9 @@ export async function listMyAgreements(req: Request, res: Response) {
 
 // GET /api/agreements/:id
 export async function getAgreement(req: Request, res: Response) {
-  const { agreement, side } = await loadAgreement(req)
+  const { agreement, side, byManager } = await loadAgreement(req)
   await agreement.populate(POPULATE)
-  sendSuccess(res, { agreement, side })
+  sendSuccess(res, { agreement, side, byManager })
 }
 
 // PUT /api/agreements/:id/terms -> counter-offer: naya version, purane sign khatam
@@ -272,7 +292,7 @@ export async function sendSignCode(req: Request, res: Response) {
 // Dono ke sign ho jayen to muahida lock aur active
 export async function signAgreement(req: Request, res: Response) {
   const { code } = parseOrThrow(signAgreementSchema, req.body ?? {})
-  const { agreement, side } = await loadAgreement(req, true)
+  const { agreement, side, byManager } = await loadAgreement(req, true)
   requireStatus(agreement, 'negotiating')
 
   const pending = agreement.signCodes?.[side]
@@ -301,12 +321,15 @@ export async function signAgreement(req: Request, res: Response) {
   }
 
   const user = await User.findById(req.user!.id).select('name email')
+  // Manager ne sign kiya: signature pe manager ka naam aur kis talent ki taraf se
+  const talentName = byManager ? (await User.findById(agreement.talent).select('name'))?.name : undefined
   const now = new Date()
   agreement.set(`signatures.${side}`, {
     version: agreement.version,
     signedAt: now,
     name: user?.name ?? '',
     email: user?.email ?? '',
+    onBehalfOf: talentName,
     ip: req.ip,
     userAgent: req.get('user-agent')?.slice(0, 300),
   })
@@ -410,28 +433,6 @@ export async function approveMilestone(req: Request, res: Response) {
   } else {
     await notifySide(agreement, 'talent', 'agreement.approved', { milestone: title })
   }
-  await respond(res, agreement)
-}
-
-// POST /api/agreements/:id/milestones/:index/request-changes -> business tabdeeli maange
-// (shartein mein likhi revisions tak)
-export async function requestChanges(req: Request, res: Response) {
-  const { note } = parseOrThrow(requestChangesSchema, req.body ?? {})
-  const { agreement, side } = await loadAgreement(req)
-  requireSide(side, 'business')
-  requireStatus(agreement, 'active')
-  const { index, work, title } = findMilestone(agreement, req)
-  if (work.status !== 'delivered') {
-    throw new AppError(409, 'INVALID_STATE', 'Only a delivered milestone can be sent back')
-  }
-  if (agreement.revisionsUsed >= agreement.terms.revisions) {
-    throw new AppError(409, 'NO_REVISIONS_LEFT', 'All the revisions in the agreement are used')
-  }
-  agreement.set(`work.${index}.status`, 'pending')
-  agreement.set(`work.${index}.changesNote`, note)
-  agreement.revisionsUsed += 1
-  await agreement.save()
-  await notifySide(agreement, 'talent', 'agreement.changes_requested', { milestone: title })
   await respond(res, agreement)
 }
 
