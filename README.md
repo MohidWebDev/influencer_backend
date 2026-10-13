@@ -275,6 +275,26 @@ The navbar's **Businesses** and **Managers** pages. An account shows up as soon 
 | GET | `/api/directory/businesses?q=&page=&limit=` | `businesses[] { _id, name, organizationType, industry, companySize, description, country, city, websiteUrl, verified, inReview, joinedAt }` |
 | GET | `/api/directory/managers?q=&page=&limit=` | `managers[] { _id, name, agencyName, bio, country, city, websiteUrl, talents (active representations), verified, inReview, joinedAt }` |
 
+## Campaign endpoints (open calls)
+
+A business / organization posts a campaign and talents apply to it themselves. Only a **verified** business can publish (`open`); an unverified one can keep `draft`s. A talent needs a claimed public profile to apply. Selecting an applicant turns it into an `accepted` hire request, so contacts open up on both sides and the agreement starts from there as usual. When as many talents as `slots` are selected, the campaign closes by itself.
+
+| Method | URL | Who | What |
+|---|---|---|---|
+| GET | `/api/campaigns?q=&category=&country=&page=&limit=` | public | open campaigns whose deadline has not passed, newest first. Each has `business { name, organizationType, country, verified }`, `counts { applications, accepted, pending }`, `acceptingApplications`. `country` also matches campaigns open to any country |
+| GET | `/api/campaigns/:id` | public | one campaign (a draft only for its owner) plus `isOwner` and, for a logged-in talent, `myApplication` |
+| GET | `/api/campaigns/mine` | business | own campaigns (drafts too) and `canPublish` |
+| POST | `/api/campaigns` | business | body `title, brief (30+), category (service category), budget? { amount, currency }, country? ('' = any), deadline?, slots (1-100), status ('open' default, or 'draft')` |
+| PATCH | `/api/campaigns/:id` | business | any of the fields above, `status: draft / open / closed`. Back to draft is refused once someone applied; `slots` can't go below the selected count |
+| DELETE | `/api/campaigns/:id` | business | deletes the campaign and its applications (hire requests stay) |
+| GET | `/api/campaigns/:id/applications` | business | applicants with their profile (`name, slug, headline, photoUrl, verified, totalFollowers` …) |
+| PATCH | `/api/campaigns/:id/applications/:applicationId` | business | `action: accept / reject`. Accept creates the accepted hire request |
+| POST | `/api/campaigns/:id/apply` | talent | body `pitch` (20-1000). Once per campaign; after withdrawing you can apply again |
+| GET | `/api/campaigns/applications/mine` | talent | own applications with their campaign |
+| POST | `/api/campaigns/applications/:applicationId/withdraw` | talent | withdraw while pending |
+
+Notifications: `campaign.application` (business), `campaign.accepted`, `campaign.rejected` (talent). Deleting an account removes its campaigns and applications.
+
 ## Shortlist endpoints
 
 Business / organization accounts keep named lists of people (for example one per campaign), with a private note on each person. Lists are private to their owner.

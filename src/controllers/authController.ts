@@ -24,6 +24,8 @@ import { Notification } from '../models/Notification'
 import { Person } from '../models/Person'
 import { ProfileClaim } from '../models/ProfileClaim'
 import { Shortlist } from '../models/Shortlist'
+import { Campaign } from '../models/Campaign'
+import { CampaignApplication } from '../models/CampaignApplication'
 import { writeAuditLog } from '../services/auditService'
 import { releaseOwnedProfiles } from '../services/profileOwnershipService'
 import { parseOrThrow } from '../utils/validation'
@@ -238,6 +240,9 @@ export async function deleteAccount(req: Request, res: Response) {
   )
   await Notification.deleteMany({ recipient: user._id })
   await Shortlist.deleteMany({ owner: user._id })
+  // Business ki campaigns aur un pe aayi / talent ki bheji hui applications
+  await Campaign.deleteMany({ owner: user._id })
+  await CampaignApplication.deleteMany({ $or: [{ business: user._id }, { applicant: user._id }] })
   await User.deleteOne({ _id: user._id })
 
   clearAuthCookies(res)

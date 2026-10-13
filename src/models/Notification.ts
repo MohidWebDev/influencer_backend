@@ -21,6 +21,8 @@ export const NOTIFICATION_TYPES = [
   'hire.cancelled',
   'representation.requested',
   'hire.answered_by_manager',
+  'campaign.accepted',
+  'campaign.rejected',
   // Manager ke liye
   'manager.approved',
   'manager.rejected',
@@ -36,6 +38,7 @@ export const NOTIFICATION_TYPES = [
   'business.rejected',
   'hire.accepted',
   'hire.declined',
+  'campaign.application',
   // Muahide ke dono taraf
   'agreement.proposed',
   'agreement.updated',
