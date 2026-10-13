@@ -26,6 +26,7 @@ export const NOTIFICATION_TYPES = [
   // Manager ke liye
   'manager.approved',
   'manager.rejected',
+  'manager.reviewed',
   'representation.invited',
   'hire.new_managed',
   // Talent aur manager dono

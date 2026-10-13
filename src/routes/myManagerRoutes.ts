@@ -3,6 +3,7 @@ import {
   getMyManager,
   inviteManager,
   talentEnd,
+  reviewMyManager,
   talentRespond,
   updatePermissions,
 } from '../controllers/representationController'
@@ -18,5 +19,6 @@ router.post('/invite', inviteManager)
 router.post('/:id/respond', talentRespond)
 router.patch('/:id', updatePermissions)
 router.post('/:id/end', talentEnd)
+router.post('/:id/review', reviewMyManager)
 
 export default router

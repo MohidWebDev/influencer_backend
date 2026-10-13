@@ -274,6 +274,12 @@ The navbar's **Businesses** and **Managers** pages. An account shows up as soon 
 |---|---|---|
 | GET | `/api/directory/businesses?q=&page=&limit=` | `businesses[] { _id, name, organizationType, industry, companySize, description, country, city, websiteUrl, verified, inReview, joinedAt }` |
 | GET | `/api/directory/managers?q=&page=&limit=` | `managers[] { _id, name, agencyName, bio, country, city, websiteUrl, talents (active representations), verified, inReview, joinedAt }` |
+| GET | `/api/directory/businesses/:id` | one business: the card fields plus `completedWork` (completed agreements) and its open `campaigns[]` |
+| GET | `/api/directory/managers/:id` | one manager: the card fields plus `socialAccounts[]` and the public profiles they represent (`talents[]`) |
+| GET | `/api/directory/businesses/:id/reviews?page=&limit=` | reviews talents wrote about the business after completed agreements (`reviewer, reviewerSlug, rating, comment`), 4 per page by default |
+| GET | `/api/directory/managers/:id/reviews?page=&limit=` | reviews talents wrote about their manager |
+
+Cards in both lists also have `rating { average, count }` (or `null`). A talent reviews their manager once per link (active or ended) with `POST /api/me/manager/:id/review` (`rating` 1-5, `comment?`); the manager gets a `manager.reviewed` notification. Rejected or suspended accounts answer 404.
 
 ## Campaign endpoints (open calls)
 

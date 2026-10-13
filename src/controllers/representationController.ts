@@ -16,6 +16,7 @@ import { parseOrThrow } from '../utils/validation'
 import {
   inviteManagerSchema,
   managerRespondSchema,
+  reviewManagerByTalentSchema,
   requestRepresentationSchema,
   talentRespondSchema,
   updatePermissionsSchema,
@@ -191,6 +192,26 @@ export async function talentEnd(req: Request, res: Response) {
       link: MANAGER_PAGE,
     })
   }
+  sendSuccess(res, { representation: rep })
+}
+
+// POST /api/me/manager/:id/review -> talent apne (maujooda ya purane) manager ko sitare de.
+// Har rishte pe ek dafa
+export async function reviewMyManager(req: Request, res: Response) {
+  const { rating, comment } = parseOrThrow(reviewManagerByTalentSchema, req.body ?? {})
+  const rep = await findRep(String(req.params.id), {
+    talent: req.user!.id,
+    status: { $in: ['active', 'ended'] },
+  })
+  if (rep.review) throw new AppError(409, 'ALREADY_REVIEWED', 'You already reviewed this manager')
+  rep.review = { rating, comment: comment || undefined, createdAt: new Date() }
+  await rep.save()
+  const talent = await User.findById(req.user!.id).select('name')
+  await notifyUser(rep.manager, {
+    type: 'manager.reviewed',
+    data: { name: talent?.name ?? '', rating: String(rating) },
+    link: MANAGER_PAGE,
+  })
   sendSuccess(res, { representation: rep })
 }
 

@@ -36,6 +36,7 @@ export const NOTIFICATION_CATEGORIES = {
     'representation.accepted',
     'representation.declined',
     'representation.ended',
+    'manager.reviewed',
   ],
   // Admin ke kaam
   admin: [

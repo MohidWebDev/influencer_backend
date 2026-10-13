@@ -94,3 +94,9 @@ export const updatePermissionsSchema = z.object({
 export const listRepresentationsQuerySchema = z.object({
   status: z.enum(REPRESENTATION_STATUSES).optional(),
 })
+
+// Talent apne manager ko review deta hai
+export const reviewManagerByTalentSchema = z.object({
+  rating: z.coerce.number().int().min(1, 'Choose 1 to 5 stars').max(5, 'Choose 1 to 5 stars'),
+  comment: z.string().trim().max(1000).optional(),
+})
