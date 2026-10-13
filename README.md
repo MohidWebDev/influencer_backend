@@ -236,7 +236,7 @@ Terms: `title, scope, currency, milestones[] { title, amount, dueDate? } (1-10),
 | POST | `/api/agreements/:id/milestones/:index/request-changes` | business | body `note`. `delivered` -> `pending`, uses one revision (409 `NO_REVISIONS_LEFT` when all are used) |
 | POST | `/api/agreements/:id/dispute` | the two parties | body `reason` (min 20). Only while `active`; admins are notified |
 | POST | `/api/agreements/:id/review` | the two parties | body `rating (1-5), comment?`. Once per side, only when `completed` |
-| GET | `/api/people/:slug/reviews` | anyone | `{ rating { average, count }, reviews[] }`: what businesses wrote about the talent |
+| GET | `/api/people/:slug/reviews?page=&limit=` | anyone | `{ rating { average, count }, reviews[] }`: what businesses wrote about the talent, newest first, 4 per page by default (`meta.total` = all reviews). `rating` always covers every review. Each person in `GET /api/people` and `GET /api/people/:slug` also has `rating { average, count }` (or `null` with no reviews) for the stars on cards |
 | GET | `/api/admin/agreements?status=&page=&limit=` | admin | all agreements |
 | GET | `/api/admin/agreements/:id` | admin | agreement with versions and audit history |
 | POST | `/api/admin/agreements/:id/resolve` | admin | body `outcome: continue / complete / cancel, note`. Only while `disputed` |

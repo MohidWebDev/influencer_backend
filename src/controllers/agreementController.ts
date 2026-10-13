@@ -1,5 +1,6 @@
 import crypto from 'node:crypto'
 import type { Request, Response } from 'express'
+import { z } from 'zod'
 import { isValidObjectId, type QueryFilter } from 'mongoose'
 import '../types/express'
 import {
@@ -470,29 +471,45 @@ export async function reviewAgreement(req: Request, res: Response) {
 }
 
 // GET /api/people/:slug/reviews -> public: businesses ki talent ke baare mein reviews
+const reviewsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(4),
+})
+
+// GET /api/people/:slug/reviews?page=&limit= -> businesses ki reviews, naye pehle (profile pe
+// pehle 4, "Show all" pe baqi). Average aur ginti hamesha saari reviews ki
 export async function listPersonReviews(req: Request, res: Response) {
+  const query = parseOrThrow(reviewsQuerySchema, req.query)
   const person = await Person.findOne({ slug: String(req.params.slug), visibility: 'visible' }).select('_id')
   if (!person) throw new AppError(404, 'NOT_FOUND', 'Profile not found')
-  const agreements = await Agreement.find({
+  const filter = {
     person: person._id,
-    status: 'completed',
+    status: 'completed' as const,
     'reviews.business': { $exists: true },
-  })
-    .select('reviews.business businessProfile completedAt')
-    .populate({ path: 'businessProfile', select: 'companyName' })
-    .sort({ completedAt: -1 })
-    .limit(50)
+  }
+  const [agreements, ratings] = await Promise.all([
+    Agreement.find(filter)
+      .select('reviews.business businessProfile completedAt')
+      .populate({ path: 'businessProfile', select: 'companyName' })
+      .sort({ 'reviews.business.createdAt': -1, _id: -1 })
+      .skip((query.page - 1) * query.limit)
+      .limit(query.limit),
+    personRatings([person._id]),
+  ])
 
   const reviews = agreements.map((a) => ({
+    _id: a._id,
     rating: a.reviews.business!.rating,
     comment: a.reviews.business!.comment,
     createdAt: a.reviews.business!.createdAt,
     business: (a.businessProfile as unknown as { companyName?: string } | null)?.companyName,
   }))
-  const average = reviews.length
-    ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10
-    : null
-  sendSuccess(res, { rating: { average, count: reviews.length }, reviews })
+  const rating = ratings.get(String(person._id)) ?? { average: null, count: 0 }
+  sendSuccess(res, { rating, reviews }, 200, {
+    page: query.page,
+    limit: query.limit,
+    total: rating.count,
+  })
 }
 
 // Talents ki di hui rating, har business user ki (hire request card ke liye)

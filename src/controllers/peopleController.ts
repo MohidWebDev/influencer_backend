@@ -13,6 +13,7 @@ import {
   resolveTaxonomySlugs,
 } from '../services/personService'
 import { activeRepresentation, canManageProfile } from '../services/representationService'
+import { personRatings } from './agreementController'
 import { AppError } from '../utils/AppError'
 import { sendSuccess } from '../utils/apiResponse'
 import { parseOrThrow } from '../utils/validation'
@@ -107,7 +108,14 @@ export async function listPeople(req: Request, res: Response) {
     Person.countDocuments(filter),
   ])
 
-  sendSuccess(res, { people }, 200, { page: query.page, limit: query.limit, total })
+  // Har card pe sitare: businesses ki reviews ka average aur kitne logon ne di
+  const ratings = await personRatings(people.map((p) => p._id))
+  const withRatings = people.map((person) => ({
+    ...(person.toJSON() as unknown as Record<string, unknown>),
+    rating: ratings.get(String(person._id)) ?? null,
+  }))
+
+  sendSuccess(res, { people: withRatings }, 200, { page: query.page, limit: query.limit, total })
 }
 
 // GET /api/people/:slug -> public profile
@@ -122,6 +130,7 @@ export async function getPersonBySlug(req: Request, res: Response) {
   const json = person.toJSON() as unknown as Record<string, unknown>
   json.services = person.services.filter((service) => service.isActive)
   json.representedBy = await representedBy(person._id)
+  json.rating = (await personRatings([person._id])).get(String(person._id)) ?? null
   sendSuccess(res, { person: json })
 }
 
