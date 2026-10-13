@@ -26,7 +26,8 @@ const campaignFields = {
     .transform((c) => (c ? c.toUpperCase() : c)),
   // null / '' = koi aakhri tareekh nahi
   deadline: z
-    .union([z.coerce.date('Choose a valid date'), z.literal(''), z.null()])
+    // null / '' pehle: coerce.date(null) 1970 bana deta hai
+    .union([z.null(), z.literal(''), z.coerce.date('Choose a valid date')])
     .optional()
     .transform((d) => (d === '' ? null : d)),
   slots: z.coerce

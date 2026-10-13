@@ -65,10 +65,11 @@ describe('campaigns', () => {
 
   it('runs the open call: publish, list, apply, accept into a hire request, auto close when full', async () => {
     const owner = await business()
-    const created = await owner.agent.post('/api/campaigns').send(campaignBody)
+    const created = await owner.agent.post('/api/campaigns').send({ ...campaignBody, deadline: null })
     expect(created.status).toBe(201)
     const campaign = created.body.data.campaign
     expect(campaign).toMatchObject({ status: 'open', country: 'PK', acceptingApplications: true })
+    expect(campaign.deadline).toBeUndefined()
     expect(campaign.business).toMatchObject({ name: 'Acme Foods', organizationType: 'brand', verified: true })
 
     const list = await request(app).get('/api/campaigns?country=PK&q=snack')
