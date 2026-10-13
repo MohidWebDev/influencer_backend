@@ -8,6 +8,7 @@ import { cancelHire, createHire, listMyHires } from '../controllers/hireControll
 import { requireAuth } from '../middlewares/requireAuth'
 import { requireRole } from '../middlewares/requireRole'
 import { requireVerifiedBusiness } from '../middlewares/requireVerifiedBusiness'
+import { otpLimiter } from '../middlewares/rateLimit'
 
 // Business account: company verification aur talents ko hire karna
 const router = Router()
@@ -16,7 +17,7 @@ router.use(requireAuth, requireRole('business'))
 router.get('/profile', getMyBusiness)
 router.put('/profile', saveMyBusiness)
 // Admin ka bheja hua code (OTP)
-router.post('/profile/verify', verifyMyBusinessCode)
+router.post('/profile/verify', otpLimiter, verifyMyBusinessCode)
 router.get('/hires', listMyHires)
 // Hire sirf admin se verified business kar sakta hai
 router.post('/hires', requireVerifiedBusiness, createHire)

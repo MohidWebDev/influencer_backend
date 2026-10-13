@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { webUrl } from './common'
 import { COMPANY_SIZES, ORGANIZATION_TYPES } from '../constants/business'
 
 const email = z.email('Enter a valid email').trim().toLowerCase()
@@ -12,7 +13,7 @@ const country = z
   .transform((c) => c.toUpperCase())
 // Khali chhor sakte hain, likha to sahi URL ho
 const optionalUrl = z
-  .union([z.url('Enter a valid URL').trim(), z.literal('')])
+  .union([webUrl('Enter a valid URL').trim(), z.literal('')])
   .optional()
   .transform((v) => v || undefined)
 const personName = z

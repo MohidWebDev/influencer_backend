@@ -10,6 +10,7 @@ import { requireAuth } from '../middlewares/requireAuth'
 import { requireRole } from '../middlewares/requireRole'
 import { validate } from '../middlewares/validate'
 import { createClaimSchema } from '../validators/claimValidator'
+import { otpLimiter } from '../middlewares/rateLimit'
 
 const router = Router()
 
@@ -21,6 +22,6 @@ router.post('/', requireRole('talent'), validate(createClaimSchema), createClaim
 router.post('/new-profile', requireRole('talent'), createNewProfileClaim)
 router.get('/mine', listMyClaims)
 router.get('/my-profile', getMyProfile)
-router.post('/:id/verify', verifyClaimCode)
+router.post('/:id/verify', otpLimiter, verifyClaimCode)
 
 export default router

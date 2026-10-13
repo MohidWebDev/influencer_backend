@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { webUrl } from './common'
 import {
   LANGUAGE_CODES,
   PROFILE_STATUSES,
@@ -8,11 +9,11 @@ import {
 import { OPEN_TO } from '../constants/services'
 
 // Khali string bhejo to field saaf ho jaye
-const optionalUrl = z.union([z.url('Enter a valid URL'), z.literal('')]).optional()
+const optionalUrl = z.union([webUrl('Enter a valid URL'), z.literal('')]).optional()
 // Photo: bahar ka link, ya hamari apni save ki hui photo (seed se)
 const photoUrl = z
   .union([
-    z.url('Enter a valid URL'),
+    webUrl('Enter a valid URL'),
     z.string().regex(/^\/api\/people\/photos\/[a-f0-9]{24}$/),
     z.literal(''),
   ])
@@ -22,14 +23,14 @@ const slugList = z.array(z.string().trim().toLowerCase().min(1)).max(10)
 const socialAccountSchema = z.object({
   platform: z.enum(SOCIAL_PLATFORMS),
   handle: z.string().trim().max(100).optional(),
-  url: z.url('Enter a valid URL'),
+  url: webUrl('Enter a valid URL'),
   followers: z.number().int().min(0).optional(),
   engagementRate: z.number().min(0).max(100).optional(),
 })
 
 const sourceRecordSchema = z.object({
   sourceType: z.enum(SOURCE_TYPES),
-  url: z.url().optional(),
+  url: webUrl().optional(),
   note: z.string().trim().max(500).optional(),
 })
 

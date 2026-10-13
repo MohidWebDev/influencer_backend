@@ -1,5 +1,6 @@
 import { isValidObjectId } from 'mongoose'
 import { z } from 'zod'
+import { webUrl } from './common'
 import {
   AGREEMENT_STATUSES,
   DISPUTE_OUTCOMES,
@@ -51,7 +52,7 @@ export const cancelAgreementSchema = z.object({
 
 export const deliverMilestoneSchema = z.object({
   note: z.string().trim().min(3, 'Describe what you delivered').max(1000),
-  link: z.union([z.url('Enter a valid URL'), z.literal('')]).optional(),
+  link: z.union([webUrl('Enter a valid URL'), z.literal('')]).optional(),
 })
 
 export const requestChangesSchema = z.object({

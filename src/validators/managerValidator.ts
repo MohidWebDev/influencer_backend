@@ -1,5 +1,6 @@
 import { isValidObjectId } from 'mongoose'
 import { z } from 'zod'
+import { webUrl } from './common'
 import { MANAGER_STATUSES, REPRESENTATION_STATUSES } from '../constants/manager'
 
 const optionalText = (max: number) => z.string().trim().max(max).optional()
@@ -7,7 +8,7 @@ const optionalText = (max: number) => z.string().trim().max(max).optional()
 // Manager apni professional details bhejta hai (pehli dafa ya dobara)
 export const managerProfileSchema = z.object({
   agencyName: optionalText(120),
-  websiteUrl: z.url('Enter a valid URL (your website or LinkedIn)').trim(),
+  websiteUrl: webUrl('Enter a valid URL (your website or LinkedIn)').trim(),
   country: z
     .string()
     .trim()
@@ -26,7 +27,7 @@ export const managerProfileSchema = z.object({
   bio: optionalText(1000),
   talentsCount: z.coerce.number().int('Use a whole number').min(0).max(10000).optional(),
   proofLinks: z
-    .array(z.url('Enter a valid URL'))
+    .array(webUrl('Enter a valid URL'))
     .max(5)
     .default([])
     .transform((list) => [...new Set(list)]),

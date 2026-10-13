@@ -1,5 +1,6 @@
 import { isValidObjectId } from 'mongoose'
 import { z } from 'zod'
+import { webUrl } from './common'
 import { CLAIM_STATUSES } from '../models/ProfileClaim'
 import { createPersonSchema } from './personValidator'
 
@@ -8,14 +9,14 @@ export const createClaimSchema = z.object({
   contactEmail: z.union([z.email('Enter a valid email').trim().toLowerCase(), z.literal('')]).optional(),
   // Kam se kam ek official link chahiye, wahin code DM hoga
   links: z
-    .array(z.url('Enter a valid URL'))
+    .array(webUrl('Enter a valid URL'))
     .min(1, 'Add at least one official account link so we can send you a code')
     .max(5),
   note: z.string().trim().max(1000).optional(),
 })
 
 export const sendCodeSchema = z.object({
-  channelUrl: z.url('Choose one of the links'),
+  channelUrl: webUrl('Choose one of the links'),
 })
 
 export const verifyCodeSchema = z.object({
@@ -27,7 +28,7 @@ export const verifyCodeSchema = z.object({
 
 // Reset: link optional, na ho to pichla link
 export const resetOtpSchema = z.object({
-  channelUrl: z.url('Choose one of the links').optional(),
+  channelUrl: webUrl('Choose one of the links').optional(),
 })
 
 export const reviewClaimSchema = z.object({

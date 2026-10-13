@@ -1,5 +1,6 @@
 import { isValidObjectId } from 'mongoose'
 import { z } from 'zod'
+import { webUrl } from './common'
 import {
   BUSINESS_STATUSES,
   COMPANY_SIZES,
@@ -16,7 +17,7 @@ export const businessProfileSchema = z.object({
   industry: optionalText(80),
   companySize: z.union([z.enum(COMPANY_SIZES), z.literal('')]).optional(),
   description: optionalText(1000),
-  websiteUrl: z.url('Enter a valid URL').trim(),
+  websiteUrl: webUrl('Enter a valid URL').trim(),
   registrationNumber: optionalText(60),
   country: z
     .string()
@@ -34,7 +35,7 @@ export const businessProfileSchema = z.object({
     ])
     .optional(),
   proofLinks: z
-    .array(z.url('Enter a valid URL'))
+    .array(webUrl('Enter a valid URL'))
     .max(5)
     .default([])
     .transform((list) => [...new Set(list)]),

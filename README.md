@@ -340,6 +340,25 @@ A failed notification never fails the action that triggered it.
 
 Create and edit use `POST /api/people` and `PATCH /api/people/:id`.
 
+## Security
+
+- **Headers:** `helmet` on every response (HSTS, `nosniff`, CSP for the JSON API, no framing); `X-Powered-By` is off. `trust proxy` is on for Vercel.
+- **CORS:** only the frontend in `CLIENT_URL` (several domains comma separated, e.g. production + preview), with cookies.
+- **Input:** every endpoint validates with Zod; JSON bodies are limited to 100 kb; keys starting with `$` or containing `.` (MongoDB operators) and `__proto__` are dropped from bodies before any route runs. Links (websites, social accounts, proof links, delivery links) must be `http(s)://`, so `javascript:` links can't be stored.
+- **Rate limits** (counted in MongoDB, collection `rate_limit_hits`, so every Vercel instance shares them; answer `429 TOO_MANY_REQUESTS` with `details.retryAfterMinutes` and `RateLimit` headers):
+
+| What | Limit | Counted per |
+|---|---|---|
+| `POST /api/auth/login` | 10 failed attempts / 15 min (successful logins don't count) | IP + email |
+| `POST /api/auth/register` | 10 / hour | IP |
+| `POST /api/auth/forgot-password`, `/forgot-password/verify`, `/reset-password` | 10 / 15 min | IP + email |
+| OTP codes: claim verify, business verify, agreement sign code / sign, `PATCH /api/auth/password` | 20 failed attempts / 15 min | user |
+| `POST /api/reports` | 10 / hour | IP |
+| every POST / PATCH / PUT / DELETE | 120 / min | user (or IP) |
+
+The client IP is read from Vercel's `x-vercel-forwarded-for`, then `req.ip`. Tests turn limits off with `RATE_LIMIT=off` (the security test turns them on).
+- **Auth:** bcrypt passwords, JWT in `httpOnly` cookies (`secure` in production, `sameSite=lax`), refresh tokens revoked through `tokenVersion`, OTP codes stored only as hashes with attempt locks. Production errors never include stack traces.
+
 ## Caching
 
 Public GETs send `Cache-Control: public, max-age=0, must-revalidate` (the browser always checks) and `CDN-Cache-Control` so Vercel's CDN can answer for 60s (people) or 1h (taxonomy). Errors are `no-store`.
@@ -350,7 +369,7 @@ The backend runs on Vercel as a serverless function (Vercel uses the app exporte
 
 ## Environment variables on Vercel
 
-`NODE_ENV`, `CLIENT_URL`, `MONGO_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (see `.env.example`).
+`NODE_ENV`, `CLIENT_URL` (comma separated for several frontends), `MONGO_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (see `.env.example`).
 
 For password reset emails also set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` and `MAIL_FROM`. With Gmail use `smtp.gmail.com`, port `587` and a Google **App Password** (not the normal Gmail password). Without `SMTP_HOST` the code is printed in the server terminal in development, and production answers 503 `EMAIL_NOT_CONFIGURED`.
 

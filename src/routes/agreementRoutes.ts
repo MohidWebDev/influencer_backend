@@ -15,6 +15,7 @@ import {
 } from '../controllers/agreementController'
 import { requireAuth } from '../middlewares/requireAuth'
 import { requireRole } from '../middlewares/requireRole'
+import { otpLimiter } from '../middlewares/rateLimit'
 
 // Business aur talent ka muahida: shartein, sign, milestones, dispute, review
 const router = Router()
@@ -24,8 +25,8 @@ router.get('/', listMyAgreements)
 router.post('/', requireRole('business'), createAgreement)
 router.get('/:id', getAgreement)
 router.put('/:id/terms', updateTerms)
-router.post('/:id/sign/code', sendSignCode)
-router.post('/:id/sign', signAgreement)
+router.post('/:id/sign/code', otpLimiter, sendSignCode)
+router.post('/:id/sign', otpLimiter, signAgreement)
 router.post('/:id/cancel', cancelAgreement)
 router.post('/:id/milestones/:index/deliver', deliverMilestone)
 router.post('/:id/milestones/:index/approve', approveMilestone)
