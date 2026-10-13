@@ -1,5 +1,11 @@
 import { Schema, model, type Types } from 'mongoose'
-import { BUSINESS_STATUSES, COMPANY_SIZES, type BusinessStatus } from '../constants/business'
+import {
+  BUSINESS_STATUSES,
+  COMPANY_SIZES,
+  ORGANIZATION_TYPES,
+  type BusinessStatus,
+  type OrganizationType,
+} from '../constants/business'
 import { VERIFICATION_METHODS, type VerificationMethod } from './ProfileClaim'
 
 export interface IBusinessVerification {
@@ -15,6 +21,8 @@ export interface IBusinessVerification {
 // phir admin approve kare to business "verified" aur sirf tab woh verified talents ko hire kar sakta hai
 export interface IBusinessProfile {
   owner: Types.ObjectId
+  // Company, brand, agency, NGO, university waghera
+  organizationType?: OrganizationType
   companyName: string
   industry?: string
   companySize?: (typeof COMPANY_SIZES)[number]
@@ -47,6 +55,7 @@ export interface IBusinessProfile {
 const businessProfileSchema = new Schema<IBusinessProfile>(
   {
     owner: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+    organizationType: { type: String, enum: ORGANIZATION_TYPES },
     companyName: { type: String, required: true, trim: true, maxlength: 120 },
     industry: { type: String, trim: true, maxlength: 80 },
     companySize: { type: String, enum: COMPANY_SIZES },

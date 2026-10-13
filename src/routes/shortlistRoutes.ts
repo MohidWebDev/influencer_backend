@@ -13,10 +13,10 @@ import {
 import { requireAuth } from '../middlewares/requireAuth'
 import { requireRole } from '../middlewares/requireRole'
 
-// Business / agency / organization ki campaign wali lists
+// Business / organization ki campaign wali lists
 const router = Router()
 
-router.use(requireAuth, requireRole('business', 'agency', 'organization'))
+router.use(requireAuth, requireRole('business'))
 router.get('/', listShortlists)
 router.post('/', createShortlist)
 router.get('/saved', savedMembership)

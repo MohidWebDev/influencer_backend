@@ -59,7 +59,7 @@ describe('audit log', () => {
   })
 
   it('blocks non-admins', async () => {
-    const { agent } = await loginAs(app, 'organization')
+    const { agent } = await loginAs(app, 'business')
     expect((await agent.get('/api/admin/audit-logs')).status).toBe(403)
   })
 })

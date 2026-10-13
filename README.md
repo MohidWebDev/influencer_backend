@@ -63,7 +63,7 @@ Request -> app.ts -> routes -> middlewares -> controller -> model -> sendSuccess
 
 | Method | URL | Who | What |
 |---|---|---|---|
-| POST | `/api/auth/register` | anyone | body: `email, password, role` (talent / representative / business / agency / organization) plus `name`. Business sends company details instead of `name`: `companyName` (required), `industry`, `companySize` (`1-10` … `1000+`), `description`; the account name becomes the company name and the details come back as `user.company`, which prefills the business verification form |
+| POST | `/api/auth/register` | anyone | body: `email, password, role` plus the fields of that account type. **talent**: `name`. **representative** (manager / agent): `name, country` (2 letters) required; `agencyName, websiteUrl` optional; saved as `user.manager` and prefill the manager verification form. **business** (any business / organization): `organizationType` (`company, brand, marketing_agency, ngo, university, event_organizer, government, other`), `companyName, country` required; `websiteUrl, industry, companySize` (`1-10` … `1000+`), `description` optional. The account name becomes the organization name and the details come back as `user.company`, which prefills the business verification form. The old `agency` and `organization` roles are merged into `business`: existing accounts are moved on database connect (`organizationType` `marketing_agency` / `other`) |
 | POST | `/api/auth/login` | anyone | body: `email, password` |
 | POST | `/api/auth/refresh` | refresh cookie | new access + refresh tokens |
 | POST | `/api/auth/logout` | anyone | clears cookies, invalidates refresh tokens |
@@ -80,7 +80,7 @@ Tokens live in httpOnly cookies: `accessToken` (15 min) and `refreshToken` (7 da
 Protect a route:
 
 ```ts
-router.post('/inquiries', requireAuth, requireRole('business', 'agency'), createInquiry)
+router.post('/inquiries', requireAuth, requireRole('business'), createInquiry)
 ```
 
 ## People endpoints
@@ -179,7 +179,7 @@ The code can be sent to the business's login email, website, any proof link or c
 | Method | URL | Who | What |
 |---|---|---|---|
 | GET | `/api/business/profile` | business | `{ business }` (company details + `status`), or `null` |
-| PUT | `/api/business/profile` | business | body `companyName, websiteUrl, country (2 letters), industry?, companySize? (1-10, 11-50, 51-200, 201-1000, 1000+), description?, registrationNumber?, city?, contactPhone?, proofLinks[]? (max 5)`. First save creates it as `pending` (201). Small edits keep the current status. Changing `companyName, registrationNumber, websiteUrl` or `country`, or saving after a rejection, starts verification again from `pending` (an approved business loses hiring until it is verified again) |
+| PUT | `/api/business/profile` | business | body `organizationType?, companyName, websiteUrl, country (2 letters), industry?, companySize? (1-10, 11-50, 51-200, 201-1000, 1000+), description?, registrationNumber?, city?, contactPhone?, proofLinks[]? (max 5)`. First save creates it as `pending` (201). Small edits keep the current status. Changing `companyName, registrationNumber, websiteUrl` or `country`, or saving after a rejection, starts verification again from `pending` (an approved business loses hiring until it is verified again) |
 | POST | `/api/business/profile/verify` | business | body `code`. Wrong code: 400 `INVALID_CODE` with `details.attemptsLeft`. 5th wrong code or any try after: 423 `OTP_LOCKED`. No code sent: 409 `NO_ACTIVE_CODE`. Expired: 410 `CODE_EXPIRED` |
 | POST | `/api/business/hires` | approved business | body `personId, title, message (min 20), serviceId?, budget? { amount, currency }, startDate?`. Not approved: 403 `BUSINESS_NOT_VERIFIED`. Talent not verified / unclaimed: 403 `TALENT_NOT_VERIFIED`. One pending request per talent (409 `HIRE_PENDING`). `serviceId` must be one of the talent's active services |
 | GET | `/api/business/hires` | business | my hire requests, newest first. An `accepted` request carries `contact { name, email }` of the talent |
@@ -272,12 +272,12 @@ The navbar's **Businesses** and **Managers** pages. An account shows up as soon 
 
 | Method | URL | What |
 |---|---|---|
-| GET | `/api/directory/businesses?q=&page=&limit=` | `businesses[] { _id, name, industry, companySize, description, country, city, websiteUrl, verified, inReview, joinedAt }` |
+| GET | `/api/directory/businesses?q=&page=&limit=` | `businesses[] { _id, name, organizationType, industry, companySize, description, country, city, websiteUrl, verified, inReview, joinedAt }` |
 | GET | `/api/directory/managers?q=&page=&limit=` | `managers[] { _id, name, agencyName, bio, country, city, websiteUrl, talents (active representations), verified, inReview, joinedAt }` |
 
 ## Shortlist endpoints
 
-Business, agency and organization accounts keep named lists of people (for example one per campaign), with a private note on each person. Lists are private to their owner.
+Business / organization accounts keep named lists of people (for example one per campaign), with a private note on each person. Lists are private to their owner.
 
 | Method | URL | What |
 |---|---|---|

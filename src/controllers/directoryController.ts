@@ -58,7 +58,8 @@ type Row = {
   name: string
   createdAt: Date
   verified: boolean
-  company?: { companyName?: string; industry?: string; companySize?: string; description?: string }
+  company?: Record<string, unknown>
+  manager?: Record<string, unknown>
   profile?: Record<string, unknown> & { status?: string }
 }
 
@@ -75,12 +76,13 @@ export async function listBusinesses(req: Request, res: Response) {
     return {
       _id: row._id,
       name: text(p.companyName) ?? text(row.company?.companyName) ?? row.name,
+      organizationType: text(p.organizationType) ?? text(row.company?.organizationType),
       industry: text(p.industry) ?? text(row.company?.industry),
       companySize: text(p.companySize) ?? text(row.company?.companySize),
       description: text(p.description) ?? text(row.company?.description),
-      country: text(p.country),
+      country: text(p.country) ?? text(row.company?.country),
       city: text(p.city),
-      websiteUrl: text(p.websiteUrl),
+      websiteUrl: text(p.websiteUrl) ?? text(row.company?.websiteUrl),
       verified: row.verified,
       // Details bheji hain aur tasdeeq chal rahi hai
       inReview: Boolean(row.profile) && !row.verified,
@@ -98,7 +100,7 @@ export async function listBusinesses(req: Request, res: Response) {
 export async function listManagers(req: Request, res: Response) {
   const query = parseOrThrow(querySchema, req.query)
   const [result] = await User.aggregate<{ items: Row[]; total: { count: number }[] }>(
-    directoryPipeline('representative', ManagerProfile.collection.name, ['name', 'profile.agencyName'], query),
+    directoryPipeline('representative', ManagerProfile.collection.name, ['name', 'manager.agencyName', 'profile.agencyName'], query),
   )
   // Kitne talents ko is waqt represent kar rahe hain (asal, talent ki marzi se jure hue)
   const ids = result.items.map((row) => row._id)
@@ -113,11 +115,11 @@ export async function listManagers(req: Request, res: Response) {
     return {
       _id: row._id,
       name: row.name,
-      agencyName: text(p.agencyName),
+      agencyName: text(p.agencyName) ?? text(row.manager?.agencyName),
       bio: text(p.bio),
-      country: text(p.country),
+      country: text(p.country) ?? text(row.manager?.country),
       city: text(p.city),
-      websiteUrl: text(p.websiteUrl),
+      websiteUrl: text(p.websiteUrl) ?? text(row.manager?.websiteUrl),
       talents: countOf.get(String(row._id)) ?? 0,
       verified: row.verified,
       inReview: Boolean(row.profile) && !row.verified,

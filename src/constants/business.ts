@@ -33,6 +33,19 @@ export const NEEDS_ACTION_BUSINESS_STATUSES: BusinessStatus[] = [
 
 export const COMPANY_SIZES = ['1-10', '11-50', '51-200', '201-1000', '1000+'] as const
 
+// Business / organization kis qism ka hai (signup pe chuna jata hai)
+export const ORGANIZATION_TYPES = [
+  'company',
+  'brand',
+  'marketing_agency',
+  'ngo',
+  'university',
+  'event_organizer',
+  'government',
+  'other',
+] as const
+export type OrganizationType = (typeof ORGANIZATION_TYPES)[number]
+
 // Ye fields badlen to approved business dobara review mein jata hai
 export const BUSINESS_IDENTITY_FIELDS = [
   'companyName',

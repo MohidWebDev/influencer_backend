@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 import { env } from './env'
 import { migrateLegacyClaims } from '../models/ProfileClaim'
+import { migrateLegacyBusinessRoles } from '../models/User'
 import { syncVerifiedWithClaims } from '../services/personModerationService'
 
 // Vercel pe har request naya function chala sakti hai, is liye connection
@@ -22,6 +23,7 @@ export async function connectDB() {
     // Har naye connection pe purane claims naye status mein (pehli request se pehle)
     .then(async (connection) => {
       await migrateLegacyClaims()
+      await migrateLegacyBusinessRoles()
       await syncVerifiedWithClaims()
       return connection
     })

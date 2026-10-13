@@ -3,7 +3,7 @@ import { Schema, model, type Types } from 'mongoose'
 export const MAX_SHORTLISTS = 50
 export const MAX_SHORTLIST_ITEMS = 200
 
-// Business (ya agency / organization) ki campaign ke hisaab se banayi hui list:
+// Business / organization ki campaign ke hisaab se banayi hui list:
 // "Ramadan campaign", "Tech podcast guests". Har shakhs ke saath apna private note
 export interface IShortlistItem {
   person: Types.ObjectId

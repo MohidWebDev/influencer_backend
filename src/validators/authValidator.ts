@@ -1,47 +1,97 @@
 import { z } from 'zod'
-import { COMPANY_SIZES } from '../constants/business'
-import { SIGNUP_ROLES } from '../constants/roles'
+import { COMPANY_SIZES, ORGANIZATION_TYPES } from '../constants/business'
 
-// Signup ka form account type ke hisaab se: business apni company ki details deta hai
-// (naam ki jagah company ka naam), baqi sab apna poora naam
+const email = z.email('Enter a valid email').trim().toLowerCase()
+const password = z.string().min(8, 'Password must be at least 8 characters').max(100)
+const optionalText = (max: number) =>
+  z.string().trim().max(max, `Use at most ${max} characters`).optional()
+const country = z
+  .string('Choose a country')
+  .trim()
+  .regex(/^[A-Za-z]{2}$/, 'Choose a country')
+  .transform((c) => c.toUpperCase())
+// Khali chhor sakte hain, likha to sahi URL ho
+const optionalUrl = z
+  .union([z.url('Enter a valid URL').trim(), z.literal('')])
+  .optional()
+  .transform((v) => v || undefined)
+const personName = z
+  .string('Name must be at least 2 characters')
+  .trim()
+  .min(2, 'Name must be at least 2 characters')
+  .max(100)
+
+// Signup ka form account type ke hisaab se alag:
+// talent   -> sirf apna naam
+// manager  -> naam + mulk (agency aur website optional)
+// business -> organization ki qism + naam + mulk (website, industry, size, description optional)
+const talentSignup = z.object({
+  role: z.literal('talent'),
+  name: personName,
+  email,
+  password,
+})
+
+const managerSignup = z.object({
+  role: z.literal('representative'),
+  name: personName,
+  email,
+  password,
+  agencyName: optionalText(120),
+  country,
+  websiteUrl: optionalUrl,
+})
+
+const businessSignup = z.object({
+  role: z.literal('business'),
+  organizationType: z.enum(ORGANIZATION_TYPES, 'Choose the type of organization'),
+  companyName: z
+    .string('Name must be at least 2 characters')
+    .trim()
+    .min(2, 'Name must be at least 2 characters')
+    .max(120, 'Use at most 120 characters'),
+  email,
+  password,
+  country,
+  websiteUrl: optionalUrl,
+  industry: optionalText(80),
+  companySize: z.enum([...COMPANY_SIZES, ''], 'Choose a company size').optional(),
+  description: optionalText(1000),
+})
+
 export const registerSchema = z
-  .object({
-    name: z.string().trim().max(100).optional(),
-    email: z.email('Enter a valid email').trim().toLowerCase(),
-    password: z
-      .string()
-      .min(8, 'Password must be at least 8 characters')
-      .max(100),
-    role: z.enum(SIGNUP_ROLES, 'Choose a valid account type'),
-    companyName: z.string().trim().max(120, 'Use at most 120 characters').optional(),
-    industry: z.string().trim().max(80, 'Use at most 80 characters').optional(),
-    companySize: z.enum([...COMPANY_SIZES, ''], 'Choose a company size').optional(),
-    description: z.string().trim().max(1000, 'Use at most 1000 characters').optional(),
+  .discriminatedUnion('role', [talentSignup, managerSignup, businessSignup], {
+    error: 'Choose a valid account type',
   })
-  .superRefine((v, ctx) => {
+  .transform((v) => {
     if (v.role === 'business') {
-      if ((v.companyName ?? '').length < 2) {
-        ctx.addIssue({ code: 'custom', path: ['companyName'], message: 'Company name must be at least 2 characters' })
+      const { companyName, organizationType, industry, companySize, description, country, websiteUrl, ...rest } = v
+      return {
+        ...rest,
+        // Account ka naam = organization ka naam (navbar, dashboard waghera mein yahi dikhta hai)
+        name: companyName.slice(0, 100),
+        company: {
+          organizationType,
+          companyName,
+          industry: industry || undefined,
+          companySize: companySize || undefined,
+          description: description || undefined,
+          country,
+          websiteUrl,
+        },
+        manager: undefined,
       }
-    } else if ((v.name ?? '').length < 2) {
-      ctx.addIssue({ code: 'custom', path: ['name'], message: 'Name must be at least 2 characters' })
     }
+    if (v.role === 'representative') {
+      const { agencyName, country, websiteUrl, ...rest } = v
+      return {
+        ...rest,
+        company: undefined,
+        manager: { agencyName: agencyName || undefined, country, websiteUrl },
+      }
+    }
+    return { ...v, company: undefined, manager: undefined }
   })
-  .transform(({ companyName, industry, companySize, description, ...rest }) =>
-    rest.role === 'business'
-      ? {
-          ...rest,
-          // Account ka naam = company ka naam (navbar, dashboard waghera mein yahi dikhta hai)
-          name: companyName!.slice(0, 100),
-          company: {
-            companyName: companyName!,
-            industry: industry || undefined,
-            companySize: companySize || undefined,
-            description: description || undefined,
-          },
-        }
-      : { ...rest, name: rest.name!, company: undefined },
-  )
 
 export const loginSchema = z.object({
   email: z.email('Enter a valid email').trim().toLowerCase(),

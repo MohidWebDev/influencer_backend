@@ -55,9 +55,9 @@ describe('admin users', () => {
   it('changes a role', async () => {
     const { agent } = await loginAs(app, 'admin')
     const { user: target } = await loginAs(app, 'business')
-    const res = await agent.patch(`/api/admin/users/${target._id}/role`).send({ role: 'agency' })
+    const res = await agent.patch(`/api/admin/users/${target._id}/role`).send({ role: 'representative' })
     expect(res.status).toBe(200)
-    expect(res.body.data.user.role).toBe('agency')
+    expect(res.body.data.user.role).toBe('representative')
   })
 
   it('does not let an admin suspend or demote themselves', async () => {

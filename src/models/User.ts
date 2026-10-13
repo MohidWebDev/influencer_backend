@@ -1,7 +1,7 @@
 import { Schema, model, type HydratedDocument, type Model } from 'mongoose'
 import bcrypt from 'bcryptjs'
-import { COMPANY_SIZES } from '../constants/business'
-import { ROLES, type Role } from '../constants/roles'
+import { COMPANY_SIZES, ORGANIZATION_TYPES, type OrganizationType } from '../constants/business'
+import { LEGACY_BUSINESS_ROLES, ROLES, type Role } from '../constants/roles'
 
 // User = login account. Public profile (Person) alag model hoga
 export interface IUser {
@@ -14,10 +14,19 @@ export interface IUser {
   // Business signup pe di gayi company details. Tasdeeq ka form inhi se shuru hota hai
   // (wahan website, mulk waghera bhi chahiye). Asal record BusinessProfile hai
   company?: {
+    organizationType?: OrganizationType
     companyName: string
     industry?: string
     companySize?: (typeof COMPANY_SIZES)[number]
     description?: string
+    country?: string
+    websiteUrl?: string
+  }
+  // Manager signup pe di gayi details. Tasdeeq ka form inhi se shuru hota hai (asal: ManagerProfile)
+  manager?: {
+    agencyName?: string
+    country?: string
+    websiteUrl?: string
   }
   // Logout pe barhta hai, taake purane refresh tokens bekaar ho jayen
   tokenVersion: number
@@ -51,10 +60,24 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
     company: {
       type: new Schema(
         {
+          organizationType: { type: String, enum: ORGANIZATION_TYPES },
           companyName: { type: String, trim: true, maxlength: 120 },
           industry: { type: String, trim: true, maxlength: 80 },
           companySize: { type: String, enum: COMPANY_SIZES },
           description: { type: String, trim: true, maxlength: 1000 },
+          country: { type: String, uppercase: true, trim: true, maxlength: 2 },
+          websiteUrl: { type: String, trim: true },
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
+    manager: {
+      type: new Schema(
+        {
+          agencyName: { type: String, trim: true, maxlength: 120 },
+          country: { type: String, uppercase: true, trim: true, maxlength: 2 },
+          websiteUrl: { type: String, trim: true },
         },
         { _id: false },
       ),
@@ -86,3 +109,23 @@ userSchema.methods.comparePassword = function (candidate: string) {
 }
 
 export const User = model<IUser, UserModel>('User', userSchema)
+
+// Purane 'agency' / 'organization' accounts ab business hain (qism organizationType mein).
+// Company ka naam na ho to account ka naam
+export async function migrateLegacyBusinessRoles() {
+  for (const [role, organizationType] of Object.entries(LEGACY_BUSINESS_ROLES)) {
+    await User.collection.updateMany({ role }, [
+      {
+        $set: {
+          role: 'business',
+          company: { $ifNull: ['$company', { companyName: '$name' }] },
+        },
+      },
+      {
+        $set: {
+          'company.organizationType': { $ifNull: ['$company.organizationType', organizationType] },
+        },
+      },
+    ])
+  }
+}

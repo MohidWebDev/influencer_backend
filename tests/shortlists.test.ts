@@ -10,12 +10,14 @@ beforeAll(async () => {
 afterAll(teardownDb)
 
 describe('shortlists', () => {
-  it('is only for business, agency and organization accounts', async () => {
+  it('is only for business / organization accounts', async () => {
     const { agent: talent } = await loginAs(app, 'talent')
     expect((await talent.get('/api/shortlists')).status).toBe(403)
     expect((await request(app).get('/api/shortlists')).status).toBe(401)
-    const { agent: agency } = await loginAs(app, 'agency')
-    expect((await agency.get('/api/shortlists')).status).toBe(200)
+    const { agent: manager } = await loginAs(app, 'representative')
+    expect((await manager.get('/api/shortlists')).status).toBe(403)
+    const { agent: business } = await loginAs(app, 'business')
+    expect((await business.get('/api/shortlists')).status).toBe(200)
   })
 
   it('creates named lists, saves people with notes and shows membership', async () => {
@@ -111,7 +113,7 @@ describe('shortlists', () => {
 
   it('deletes the lists with the account', async () => {
     const { Shortlist } = await import('../src/models/Shortlist')
-    const { agent, user } = await loginAs(app, 'organization')
+    const { agent, user } = await loginAs(app, 'business')
     await agent.post('/api/shortlists').send({ name: 'Speakers' })
     await agent.delete('/api/auth/account').send({ confirm: `delete ${user.name}` })
     expect(await Shortlist.countDocuments({ owner: user._id })).toBe(0)

@@ -24,7 +24,9 @@ describe('public business and manager directory', () => {
   it('shows a business as soon as it signs up, without private details', async () => {
     await request(app).post('/api/auth/register').send({
       role: 'business',
+      organizationType: 'brand',
       companyName: 'Acme Foods',
+      country: 'pk',
       industry: 'Food & beverage',
       companySize: '11-50',
       email: 'acme@test.com',
@@ -33,15 +35,15 @@ describe('public business and manager directory', () => {
     const body = await list('businesses')
     expect(body.meta.total).toBe(1)
     const [acme] = body.data.businesses
-    expect(acme).toMatchObject({ name: 'Acme Foods', industry: 'Food & beverage', companySize: '11-50', verified: false, inReview: false })
+    expect(acme).toMatchObject({ name: 'Acme Foods', organizationType: 'brand', country: 'PK', industry: 'Food & beverage', companySize: '11-50', verified: false, inReview: false })
     expect(JSON.stringify(body)).not.toContain('acme@test.com')
   })
 
   it('shows a manager as soon as they sign up', async () => {
-    await request(app).post('/api/auth/register').send({ role: 'representative', name: 'Sara Agent', email: 'sara@test.com', password: 'password123' })
+    await request(app).post('/api/auth/register').send({ role: 'representative', name: 'Sara Agent', agencyName: 'Star Talent', country: 'AE', email: 'sara@test.com', password: 'password123' })
     const body = await list('managers')
     expect(body.data.managers.map((m: { name: string }) => m.name)).toEqual(['Sara Agent'])
-    expect(body.data.managers[0].talents).toBe(0)
+    expect(body.data.managers[0]).toMatchObject({ agencyName: 'Star Talent', country: 'AE', talents: 0 })
     expect(JSON.stringify(body)).not.toContain('sara@test.com')
   })
 
@@ -49,7 +51,7 @@ describe('public business and manager directory', () => {
     const { User } = await import('../src/models/User')
     const { BusinessProfile } = await import('../src/models/BusinessProfile')
     const make = async (name: string) => {
-      await request(app).post('/api/auth/register').send({ role: 'business', companyName: name, email: `${name.replace(/\s/g, '')}@test.com`, password: 'password123' })
+      await request(app).post('/api/auth/register').send({ role: 'business', organizationType: 'company', companyName: name, country: 'PK', email: `${name.replace(/\s/g, '')}@test.com`, password: 'password123' })
       return User.findOne({ name })
     }
     const verified = await make('Verified Co')

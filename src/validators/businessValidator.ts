@@ -1,11 +1,17 @@
 import { isValidObjectId } from 'mongoose'
 import { z } from 'zod'
-import { BUSINESS_STATUSES, COMPANY_SIZES, HIRE_CURRENCIES } from '../constants/business'
+import {
+  BUSINESS_STATUSES,
+  COMPANY_SIZES,
+  HIRE_CURRENCIES,
+  ORGANIZATION_TYPES,
+} from '../constants/business'
 
 const optionalText = (max: number) => z.string().trim().max(max).optional()
 
 // Business apni company ki details bhejta hai (pehli dafa ya dobara)
 export const businessProfileSchema = z.object({
+  organizationType: z.enum(ORGANIZATION_TYPES, 'Choose the type of organization').optional(),
   companyName: z.string().trim().min(2, 'Company name must be at least 2 characters').max(120),
   industry: optionalText(80),
   companySize: z.union([z.enum(COMPANY_SIZES), z.literal('')]).optional(),
