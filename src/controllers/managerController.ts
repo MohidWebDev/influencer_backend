@@ -45,7 +45,7 @@ export async function getMyManagerProfile(req: Request, res: Response) {
 }
 
 // PUT /api/manager/profile -> pehli dafa bhejo, ya theek kar ke dobara.
-// Pehchaan (agency, website, mulk) badle ya reject hua ho to dobara review
+// Pehchaan (agency, website, social links, mulk) badle ya reject hua ho to dobara review
 export async function saveMyManagerProfile(req: Request, res: Response) {
   const input = parseOrThrow(managerProfileSchema, req.body ?? {})
   const values = { ...input, contactPhone: input.contactPhone || undefined }
@@ -57,9 +57,11 @@ export async function saveMyManagerProfile(req: Request, res: Response) {
     return sendSuccess(res, { manager }, 201)
   }
 
-  const identityChanged = MANAGER_IDENTITY_FIELDS.some(
-    (field) => (existing[field] ?? '') !== (values[field] ?? ''),
-  )
+  // Social links bhi pehchaan hain: badlen to dobara review
+  const links = (accounts: { url: string }[]) => accounts.map((a) => a.url).sort().join(' ')
+  const identityChanged =
+    MANAGER_IDENTITY_FIELDS.some((field) => (existing[field] ?? '') !== (values[field] ?? '')) ||
+    links(existing.socialAccounts) !== links(values.socialAccounts)
   existing.set(values)
   const restart = identityChanged || existing.status === 'rejected'
   if (restart) {
@@ -97,6 +99,7 @@ export async function adminListManagers(req: Request, res: Response) {
     filter.$or = [
       { agencyName: pattern },
       { websiteUrl: pattern },
+      { 'socialAccounts.url': pattern },
       { owner: { $in: owners.map((o) => o._id) } },
     ]
   }

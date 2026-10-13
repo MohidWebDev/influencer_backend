@@ -239,6 +239,17 @@ export async function updatePerson(req: Request, res: Response) {
     ? parseOrThrow(adminUpdatePersonSchema, body)
     : parseOrThrow(updatePersonSchema, body)
 
+  // Talent (ya us ka manager) apni profile pe kam az kam ek social account rakhe
+  // (admin ki seed / unclaimed profiles pe ye shart nahi)
+  if (isOwner) {
+    const accounts = input.socialAccounts ?? person.socialAccounts
+    if (!accounts.length) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Invalid input', {
+        socialAccounts: 'Add at least one social account',
+      })
+    }
+  }
+
   // Talent ki bheji hui profile sirf claim approve hone pe public hoti hai, haath se nahi
   if (input.visibility === 'visible' && person.isDraft) {
     throw new AppError(

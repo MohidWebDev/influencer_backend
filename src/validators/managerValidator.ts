@@ -2,13 +2,27 @@ import { isValidObjectId } from 'mongoose'
 import { z } from 'zod'
 import { webUrl } from './common'
 import { MANAGER_STATUSES, REPRESENTATION_STATUSES } from '../constants/manager'
+import { SOCIAL_PLATFORMS } from '../constants/people'
 
 const optionalText = (max: number) => z.string().trim().max(max).optional()
 
 // Manager apni professional details bhejta hai (pehli dafa ya dobara)
 export const managerProfileSchema = z.object({
   agencyName: optionalText(120),
-  websiteUrl: webUrl('Enter a valid URL (your website or LinkedIn)').trim(),
+  // Website optional; kam az kam ek social account zaroori (tasdeeq aur raabte ke liye)
+  websiteUrl: z
+    .union([webUrl('Enter a valid URL'), z.literal('')])
+    .optional()
+    .transform((url) => url || undefined),
+  socialAccounts: z
+    .array(
+      z.object({
+        platform: z.enum(SOCIAL_PLATFORMS, 'Choose a platform'),
+        url: webUrl('Enter a valid URL'),
+      }),
+    )
+    .min(1, 'Add at least one social account')
+    .max(10),
   country: z
     .string()
     .trim()

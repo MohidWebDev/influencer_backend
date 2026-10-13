@@ -1,5 +1,6 @@
 import { Schema, model, type Types } from 'mongoose'
 import { MANAGER_STATUSES, type ManagerStatus } from '../constants/manager'
+import { SOCIAL_PLATFORMS, type SocialPlatform } from '../constants/people'
 
 // Manager / agent ki professional details. Admin approve kare to "verified manager",
 // aur sirf tab woh talents ke saath jur sakta hai (talent ki ijazat se)
@@ -7,8 +8,10 @@ export interface IManagerProfile {
   owner: Types.ObjectId
   // Akela kaam karta ho to khali
   agencyName?: string
-  // Website ya LinkedIn
-  websiteUrl: string
+  // Apni website (optional)
+  websiteUrl?: string
+  // Kam az kam ek social account (Instagram, LinkedIn waghera)
+  socialAccounts: { platform: SocialPlatform; url: string }[]
   country: string
   city?: string
   contactPhone?: string
@@ -30,7 +33,19 @@ const managerProfileSchema = new Schema<IManagerProfile>(
   {
     owner: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
     agencyName: { type: String, trim: true, maxlength: 120 },
-    websiteUrl: { type: String, required: true, trim: true },
+    websiteUrl: { type: String, trim: true },
+    socialAccounts: {
+      type: [
+        new Schema(
+          {
+            platform: { type: String, enum: SOCIAL_PLATFORMS, required: true },
+            url: { type: String, required: true, trim: true },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
     country: { type: String, required: true, uppercase: true, trim: true, minlength: 2, maxlength: 2 },
     city: { type: String, trim: true, maxlength: 80 },
     contactPhone: { type: String, trim: true, maxlength: 30 },

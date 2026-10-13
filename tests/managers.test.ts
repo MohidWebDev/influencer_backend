@@ -11,7 +11,7 @@ afterAll(teardownDb)
 
 const MANAGER_DETAILS = {
   agencyName: 'Star Talent',
-  websiteUrl: 'https://linkedin.com/in/ali-manager',
+  socialAccounts: [{ platform: 'linkedin', url: 'https://linkedin.com/in/ali-manager' }],
   country: 'pk',
   talentsCount: 4,
   proofLinks: ['https://startalent.example.com'],
@@ -37,7 +37,11 @@ async function verifiedManager() {
 
 async function talentWithProfile() {
   const talent = await loginAs(app, 'talent')
-  const person = await createPerson({ claimedBy: talent.user._id, verified: true })
+  const person = await createPerson({
+    claimedBy: talent.user._id,
+    verified: true,
+    socialAccounts: [{ platform: 'instagram', url: 'https://instagram.com/managed-talent' }],
+  })
   return { ...talent, person }
 }
 
@@ -170,5 +174,39 @@ describe('managers', () => {
     expect(rejected.body.data.manager.status).toBe('rejected')
     expect(rejected.body.data.representations[0].status).toBe('ended')
     expect((await talent.agent.get('/api/me/manager')).body.data.active).toBeNull()
+  })
+})
+
+describe('social accounts are required', () => {
+  it('needs at least one social account for a manager; website is optional', async () => {
+    const manager = await loginAs(app, 'representative')
+    const none = await manager.agent.put('/api/manager/profile').send({ country: 'pk' })
+    expect(none.status).toBe(400)
+    expect(none.body.error.fields.socialAccounts).toBeTruthy()
+
+    const badLink = await manager.agent
+      .put('/api/manager/profile')
+      .send({ country: 'pk', socialAccounts: [{ platform: 'instagram', url: 'javascript:alert(1)' }] })
+    expect(badLink.status).toBe(400)
+
+    const ok = await manager.agent
+      .put('/api/manager/profile')
+      .send({ country: 'pk', websiteUrl: '', socialAccounts: [{ platform: 'instagram', url: 'https://instagram.com/sara' }] })
+    expect(ok.status).toBe(201)
+    expect(ok.body.data.manager.websiteUrl).toBeUndefined()
+    expect(ok.body.data.manager.socialAccounts).toEqual([{ platform: 'instagram', url: 'https://instagram.com/sara' }])
+  })
+
+  it('does not let a talent remove their last social account; website stays optional', async () => {
+    const talent = await loginAs(app, 'talent')
+    const person = await createPerson({
+      claimedBy: talent.user._id,
+      socialAccounts: [{ platform: 'youtube', url: 'https://youtube.com/@me' }],
+    })
+    const cleared = await talent.agent.patch(`/api/people/${person._id}`).send({ socialAccounts: [] })
+    expect(cleared.status).toBe(400)
+    expect(cleared.body.error.fields.socialAccounts).toBeTruthy()
+    const ok = await talent.agent.patch(`/api/people/${person._id}`).send({ websiteUrl: '', headline: 'Creator' })
+    expect(ok.status).toBe(200)
   })
 })

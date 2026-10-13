@@ -101,7 +101,7 @@ Public `GET /api/people` and `/api/people/:slug` are cached on the Vercel CDN fo
 
 Services and availability live on the talent's `Person`. The public profile only returns active services. A claimed profile becomes `hireable` automatically when it is open for work and has at least one active service, and goes back to `contactable` when it is not (`represented` is never changed). `GET /api/people?openTo=speaking` lists people who are open for that kind of work. Deleting the owner's account clears the services and availability.
 | POST | `/api/people` | admin | create a profile (taxonomy as slugs). A new profile cannot be `verified` (409 `PROFILE_NOT_CLAIMED`) |
-| PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, visibility`. On a claimed profile the admin can only change `visibility` (403 `PROFILE_CLAIMED` otherwise). `verified` cannot be changed by hand (409 `AUTO_VERIFIED`): a profile becomes verified automatically when its claim is approved |
+| PATCH | `/api/people/:id` | admin or the user who claimed it | edit; only admin can change `name, status, visibility`. On a claimed profile the admin can only change `visibility` (403 `PROFILE_CLAIMED` otherwise). `verified` cannot be changed by hand (409 `AUTO_VERIFIED`): a profile becomes verified automatically when its claim is approved. The owner (or their manager) must keep at least one social account: saving with none gives 400 with `fields.socialAccounts`; `websiteUrl` is optional |
 | DELETE | `/api/people/:id` | admin | delete a profile permanently (prefer `visibility: hidden` for takedowns) |
 | GET | `/api/taxonomy/professions` (`industries`, `topics`) | anyone | dropdown lists |
 
@@ -251,7 +251,7 @@ A manager / agent sends their details, an admin approves them, and then they can
 
 | Method | URL | Who | What |
 |---|---|---|---|
-| GET / PUT | `/api/manager/profile` | representative | own details: `websiteUrl` (website or LinkedIn), `country` required; `agencyName, city, contactPhone, bio, talentsCount, proofLinks`. New, rejected or identity changes (`agencyName, websiteUrl, country`) go to `pending` |
+| GET / PUT | `/api/manager/profile` | representative | own details: `socialAccounts [{ platform, url }]` (at least one) and `country` required; `websiteUrl` (optional), `agencyName, city, contactPhone, bio, talentsCount, proofLinks`. New, rejected or identity changes (`agencyName, websiteUrl, social links, country`) go to `pending` |
 | GET | `/api/manager/representations` | representative | invites, requests and past links |
 | POST | `/api/manager/representations` | verified manager | body `personId, message`: ask to represent a claimed talent. 409 `HAS_MANAGER` / `ALREADY_PENDING`, 403 `MANAGER_NOT_VERIFIED` |
 | POST | `/api/manager/representations/:id/respond` | representative | body `action` (`accept` / `decline`) a talent's invite |
