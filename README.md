@@ -83,6 +83,10 @@ Protect a route:
 router.post('/inquiries', requireAuth, requireRole('business'), createInquiry)
 ```
 
+## Home page stats
+
+`GET /api/stats/home` (public, CDN-cached 5 min) answers `{ profiles, newThisWeek, countries, verified, categories }` for visible profiles only. `categories` is `[{ key, slugs, count }]` for journalists, creators, speakers and experts; which professions belong to each is set in `src/constants/homeCategories.ts`, and the frontend links each card to `/search?profession=<slugs>`.
+
 ## People endpoints
 
 | Method | URL | Who | What |

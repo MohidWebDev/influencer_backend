@@ -12,6 +12,7 @@ import peopleRoutes from './peopleRoutes'
 import taxonomyRoutes from './taxonomyRoutes'
 import serviceRoutes from './serviceRoutes'
 import shortlistRoutes from './shortlistRoutes'
+import statsRoutes from './statsRoutes'
 import directoryRoutes from './directoryRoutes'
 import campaignRoutes from './campaignRoutes'
 import accountRoutes from './accountRoutes'
@@ -23,6 +24,7 @@ const router = Router()
 router.use('/auth', authRoutes)
 router.use('/people', peopleRoutes)
 router.use('/taxonomy', taxonomyRoutes)
+router.use('/stats', statsRoutes)
 router.use('/claims', claimRoutes)
 router.use('/reports', reportRoutes)
 router.use('/admin', adminRoutes)
