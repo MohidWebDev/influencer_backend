@@ -26,6 +26,11 @@ import {
   adminUpdateUserStatus,
 } from '../controllers/adminUserController'
 import { adminListAuditLogs } from '../controllers/auditLogController'
+import {
+  adminDeleteSubscriber,
+  adminExportSubscribers,
+  adminListSubscribers,
+} from '../controllers/newsletterController'
 import { requireAuth } from '../middlewares/requireAuth'
 import { requireRole } from '../middlewares/requireRole'
 
@@ -61,5 +66,9 @@ router.get('/agreements/:id', adminGetAgreement)
 router.post('/agreements/:id/resolve', adminResolveDispute)
 
 router.get('/audit-logs', adminListAuditLogs)
+
+router.get('/newsletter', adminListSubscribers)
+router.get('/newsletter/export', adminExportSubscribers)
+router.delete('/newsletter/:id', adminDeleteSubscriber)
 
 export default router

@@ -6,6 +6,7 @@ import businessRoutes from './businessRoutes'
 import claimRoutes from './claimRoutes'
 import managerRoutes from './managerRoutes'
 import myManagerRoutes from './myManagerRoutes'
+import newsletterRoutes from './newsletterRoutes'
 import notificationRoutes from './notificationRoutes'
 import reportRoutes from './reportRoutes'
 import peopleRoutes from './peopleRoutes'
@@ -25,6 +26,7 @@ router.use('/auth', authRoutes)
 router.use('/people', peopleRoutes)
 router.use('/taxonomy', taxonomyRoutes)
 router.use('/stats', statsRoutes)
+router.use('/newsletter', newsletterRoutes)
 router.use('/claims', claimRoutes)
 router.use('/reports', reportRoutes)
 router.use('/admin', adminRoutes)

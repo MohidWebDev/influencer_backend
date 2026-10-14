@@ -87,6 +87,16 @@ router.post('/inquiries', requireAuth, requireRole('business'), createInquiry)
 
 `GET /api/stats/home` (public, CDN-cached 5 min) answers `{ profiles, newThisWeek, countries, verified, categories }` for visible profiles only. `categories` is `[{ key, slugs, count }]` for journalists, creators, speakers and experts; which professions belong to each is set in `src/constants/homeCategories.ts`, and the frontend links each card to `/search?profession=<slugs>`.
 
+## Newsletter
+
+| Method | URL | Who | What |
+|---|---|---|---|
+| POST | `/api/newsletter/subscribe` | anyone | body `email`, optional `language` (`en / ur / ar`). Always answers `{ subscribed: true }` (never reveals whether the email was already on the list); an unsubscribed email is subscribed again. Rate-limited to 10 per IP per hour |
+| POST | `/api/newsletter/unsubscribe` | anyone | body `token` (the subscriber's secret 48-character unsubscribe token, for the link in future emails). Wrong token: 404 |
+| GET | `/api/admin/newsletter` | admin | `status, q (email), page, limit`; also returns `subscribed` (total subscribed) |
+| GET | `/api/admin/newsletter/export` | admin | CSV of subscribed emails (`email, language, subscribed_at`); values that could run as spreadsheet formulas are prefixed with `'` |
+| DELETE | `/api/admin/newsletter/:id` | admin | remove an email for good |
+
 ## People endpoints
 
 | Method | URL | Who | What |

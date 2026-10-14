@@ -127,3 +127,5 @@ export const writeLimiter: RequestHandler = (req, res, next) =>
   req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS'
     ? next()
     : writes(req, res, next)
+// Newsletter form: ek IP se ghante mein 10 (spam ke khilaf)
+export const newsletterLimiter = limiter('newsletter', { windowMinutes: 60, max: 10, by: 'ip' })
