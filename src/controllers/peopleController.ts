@@ -15,6 +15,7 @@ import {
 import { activeRepresentation, canManageProfile } from '../services/representationService'
 import { personRatings } from './agreementController'
 import { AppError } from '../utils/AppError'
+import { averageEngagement } from '../utils/engagement'
 import { sendSuccess } from '../utils/apiResponse'
 import { parseOrThrow } from '../utils/validation'
 import {
@@ -33,7 +34,8 @@ const TAXONOMY_POPULATE = [
 
 // Search results ke card ke liye sirf zaroori fields
 const LIST_FIELDS =
-  'name slug headline photoUrl status professions country city totalFollowers verified isDemo claimedBy availability.isOpen availability.openTo'
+  'name slug headline photoUrl status professions country city totalFollowers verified isDemo claimedBy availability.isOpen availability.openTo socialAccounts.followers socialAccounts.engagementRate'
+
 
 // Claimed profile pe admin sirf ye fields badal sakta hai
 const MODERATION_FIELDS = ['visibility']
@@ -110,10 +112,17 @@ export async function listPeople(req: Request, res: Response) {
 
   // Har card pe sitare: businesses ki reviews ka average aur kitne logon ne di
   const ratings = await personRatings(people.map((p) => p._id))
-  const withRatings = people.map((person) => ({
-    ...(person.toJSON() as unknown as Record<string, unknown>),
-    rating: ratings.get(String(person._id)) ?? null,
-  }))
+  const withRatings = people.map((person) => {
+    // Accounts sirf engagement nikalne ke liye mangwaye the; card ko poori list nahi chahiye
+    const { socialAccounts, ...json } = person.toJSON() as unknown as Record<string, unknown> & {
+      socialAccounts?: { followers?: number; engagementRate?: number }[]
+    }
+    return {
+      ...json,
+      engagementRate: averageEngagement(socialAccounts),
+      rating: ratings.get(String(person._id)) ?? null,
+    }
+  })
 
   sendSuccess(res, { people: withRatings }, 200, { page: query.page, limit: query.limit, total })
 }
