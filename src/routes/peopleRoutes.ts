@@ -15,6 +15,8 @@ import { requireRole } from '../middlewares/requireRole'
 import { validate } from '../middlewares/validate'
 import { createPersonSchema } from '../validators/personValidator'
 import { getPersonSnapshot } from '../services/auditSnapshots'
+import { removePersonPhoto, uploadPersonPhoto } from '../controllers/uploadController'
+import { uploadImage } from '../middlewares/upload'
 
 const router = Router()
 
@@ -34,6 +36,9 @@ function personUpdateAction(req: Request) {
 // Mehman: CDN ka jawab zyada se zyada 10s purana (verified / claimed jaldi dikhe)
 router.get('/', cachePublic(10, 20), listPeople)
 router.get('/photos/:id', getPersonPhoto)
+// Talent (ya us ka manager / admin unclaimed pe) profile photo upload karta hai: form field "photo"
+router.put('/:id/photo', requireAuth, uploadImage, uploadPersonPhoto)
+router.delete('/:id/photo', requireAuth, removePersonPhoto)
 router.get('/:slug/reviews', cachePublic(10, 20), listPersonReviews)
 router.get('/:slug', cachePublic(10, 20), getPersonBySlug)
 router.post(

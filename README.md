@@ -302,6 +302,25 @@ A business / organization posts a campaign and talents apply to it themselves. O
 
 Notifications: `campaign.application` (business), `campaign.accepted`, `campaign.rejected` (talent). Deleting an account removes its campaigns and applications.
 
+## Photo uploads (multer)
+
+Every account can upload a photo (talent, manager, admin) or logo (business); a talent, their manager (with `manageProfile`) or an admin (unclaimed profiles only) can also upload the public profile photo. Files come in as `multipart/form-data` in the field **`photo`**: one JPG, PNG or WebP image up to **2 MB**. The real type is checked from the file's first bytes, not from the name or browser header.
+
+| Method | URL | Who | What |
+|---|---|---|---|
+| PUT | `/api/account/avatar` | logged in | upload / replace my photo or logo -> `user.avatarUrl` (the old file is deleted) |
+| DELETE | `/api/account/avatar` | logged in | remove it |
+| PUT | `/api/people/:id/photo` | owner, their manager, admin (unclaimed) | upload the profile photo -> `photoUrl` (clears `photoCredit`) |
+| DELETE | `/api/people/:id/photo` | same | remove it |
+| GET | `/api/uploads/:file` | public | the image, cached for a year (each upload gets a new name) |
+
+Errors: 400 `NO_FILE`, `INVALID_IMAGE`, `FILE_TOO_LARGE`. Business cards and pages return `logoUrl`, manager cards `photoUrl`, campaign cards `business.logoUrl`. Deleting an account deletes its photo.
+
+**Where files go** (`src/services/imageStorage.ts`, `UPLOAD_DRIVER`):
+- `disk` (default locally / on a normal server): the `uploads/` folder (`UPLOAD_DIR` to change it). The folder is in git, the uploaded files are not.
+- `mongo` (default on Vercel, whose file system is read-only): the `uploaded_images` collection.
+- Cloudinary later: add a driver in the same file; routes and frontend stay the same.
+
 ## Shortlist endpoints
 
 Business / organization accounts keep named lists of people (for example one per campaign), with a private note on each person. Lists are private to their owner.

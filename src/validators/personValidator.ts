@@ -15,6 +15,8 @@ const photoUrl = z
   .union([
     webUrl('Enter a valid URL'),
     z.string().regex(/^\/api\/people\/photos\/[a-f0-9]{24}$/),
+    // Upload ki hui photo
+    z.string().regex(/^\/api\/uploads\/[a-f0-9]{24}\.(jpg|png|webp)$/),
     z.literal(''),
   ])
   .optional()

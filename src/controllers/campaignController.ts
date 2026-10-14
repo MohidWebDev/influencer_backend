@@ -60,7 +60,7 @@ function notVerifiedError() {
 // Business ki public pehchaan (campaign card pe): naam, qism, mulk, verified
 async function businessCards(ownerIds: Types.ObjectId[]) {
   const [users, profiles] = await Promise.all([
-    User.find({ _id: { $in: ownerIds } }).select('name company'),
+    User.find({ _id: { $in: ownerIds } }).select('name company avatarUrl'),
     BusinessProfile.find({ owner: { $in: ownerIds } }).select(
       'owner companyName organizationType country city websiteUrl status',
     ),
@@ -74,6 +74,7 @@ async function businessCards(ownerIds: Types.ObjectId[]) {
         {
           _id: user._id,
           name: p?.companyName ?? user.company?.companyName ?? user.name,
+          logoUrl: user.avatarUrl,
           organizationType: p?.organizationType ?? user.company?.organizationType,
           country: p?.country ?? user.company?.country,
           city: p?.city,

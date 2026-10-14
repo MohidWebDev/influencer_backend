@@ -11,6 +11,8 @@ export interface IUser {
   role: Role
   isEmailVerified: boolean
   status: 'active' | 'suspended'
+  // Apni photo (talent / manager / admin) ya logo (business). /api/uploads/... ya khali
+  avatarUrl?: string
   // Business signup pe di gayi company details. Tasdeeq ka form inhi se shuru hota hai
   // (wahan website, mulk waghera bhi chahiye). Asal record BusinessProfile hai
   company?: {
@@ -57,6 +59,7 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
     role: { type: String, enum: ROLES, required: true },
     isEmailVerified: { type: Boolean, default: false },
     status: { type: String, enum: ['active', 'suspended'], default: 'active' },
+    avatarUrl: { type: String, trim: true },
     company: {
       type: new Schema(
         {

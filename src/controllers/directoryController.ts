@@ -64,6 +64,7 @@ type Row = {
   name: string
   createdAt: Date
   verified: boolean
+  avatarUrl?: string
   company?: Record<string, unknown>
   manager?: Record<string, unknown>
   profile?: Record<string, unknown> & { status?: string }
@@ -92,6 +93,8 @@ function businessCard(row: Row, rating: Rating | undefined) {
   return {
     _id: row._id,
     name: text(p.companyName) ?? text(row.company?.companyName) ?? row.name,
+    // Business ka apna upload kiya hua logo
+    logoUrl: text(row.avatarUrl),
     organizationType: text(p.organizationType) ?? text(row.company?.organizationType),
     industry: text(p.industry) ?? text(row.company?.industry),
     companySize: text(p.companySize) ?? text(row.company?.companySize),
@@ -113,6 +116,7 @@ function managerCard(row: Row, talents: number, rating: Rating | undefined) {
   return {
     _id: row._id,
     name: row.name,
+    photoUrl: text(row.avatarUrl),
     agencyName: text(p.agencyName) ?? text(row.manager?.agencyName),
     bio: text(p.bio),
     country: text(p.country) ?? text(row.manager?.country),

@@ -14,6 +14,8 @@ import serviceRoutes from './serviceRoutes'
 import shortlistRoutes from './shortlistRoutes'
 import directoryRoutes from './directoryRoutes'
 import campaignRoutes from './campaignRoutes'
+import accountRoutes from './accountRoutes'
+import { getUpload } from '../controllers/uploadController'
 
 // Saari API routes yahan ek jagah jorte hain
 const router = Router()
@@ -34,5 +36,8 @@ router.use('/agreements', agreementRoutes)
 router.use('/shortlists', shortlistRoutes)
 router.use('/directory', directoryRoutes)
 router.use('/campaigns', campaignRoutes)
+router.use('/account', accountRoutes)
+// Upload ki hui tasveerein (photos / logos)
+router.get('/uploads/:file', getUpload)
 
 export default router

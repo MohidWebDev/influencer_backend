@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express'
 import '../types/express'
 import { User, type UserDocument } from '../models/User'
+import { removeImage } from '../services/imageStorage'
 import { AppError } from '../utils/AppError'
 import { sendSuccess } from '../utils/apiResponse'
 import {
@@ -243,6 +244,8 @@ export async function deleteAccount(req: Request, res: Response) {
   // Business ki campaigns aur un pe aayi / talent ki bheji hui applications
   await Campaign.deleteMany({ owner: user._id })
   await CampaignApplication.deleteMany({ $or: [{ business: user._id }, { applicant: user._id }] })
+  // Apni upload ki hui photo / logo bhi
+  await removeImage(user.avatarUrl)
   await User.deleteOne({ _id: user._id })
 
   clearAuthCookies(res)
